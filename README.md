@@ -54,8 +54,9 @@ Overview of all features, improvements, and statistics.
 ### Installation
 
 ```bash
-# Install Python dependencies
-pip install requests websockets pillow
+# Install .NET packages
+dotnet add package System.Net.Http.Json
+dotnet add package System.Text.Json
 
 # Start ComfyUI server (in ComfyUI directory)
 python main.py
@@ -65,34 +66,45 @@ Server will be available at: `http://127.0.0.1:8188`
 
 ### Your First Workflow (30 seconds)
 
-```python
-import requests
-import uuid
+```csharp
+using System;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Threading.Tasks;
 
-# Simple text-to-image workflow
-workflow = {
-    "1": {"inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}, "class_type": "CheckpointLoaderSimple"},
-    "2": {"inputs": {"text": "a beautiful sunset over mountains", "clip": ["1", 1]}, "class_type": "CLIPTextEncode"},
-    "3": {"inputs": {"width": 512, "height": 512, "batch_size": 1}, "class_type": "EmptyLatentImage"},
-    "4": {"inputs": {"seed": 42, "steps": 20, "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal",
-                     "model": ["1", 0], "positive": ["2", 0], "negative": ["2", 0], 
-                     "latent_image": ["3", 0]}, "class_type": "KSampler"},
-    "5": {"inputs": {"samples": ["4", 0], "vae": ["1", 2]}, "class_type": "VAEDecode"},
-    "6": {"inputs": {"filename_prefix": "quickstart", "images": ["5", 0]}, "class_type": "SaveImage"}
-}
+// Simple text-to-image workflow
+var workflow = new
+{
+    _1 = new { inputs = new { ckpt_name = "sd_xl_base_1.0.safetensors" }, class_type = "CheckpointLoaderSimple" },
+    _2 = new { inputs = new { text = "a beautiful sunset over mountains", clip = new object[] { "1", 1 } }, class_type = "CLIPTextEncode" },
+    _3 = new { inputs = new { width = 512, height = 512, batch_size = 1 }, class_type = "EmptyLatentImage" },
+    _4 = new { inputs = new { seed = 42, steps = 20, cfg = 7.0, sampler_name = "euler", scheduler = "normal",
+                     model = new object[] { "1", 0 }, positive = new object[] { "2", 0 }, negative = new object[] { "2", 0 }, 
+                     latent_image = new object[] { "3", 0 } }, class_type = "KSampler" },
+    _5 = new { inputs = new { samples = new object[] { "4", 0 }, vae = new object[] { "1", 2 } }, class_type = "VAEDecode" },
+    _6 = new { inputs = new { filename_prefix = "quickstart", images = new object[] { "5", 0 } }, class_type = "SaveImage" }
+};
 
-# Execute it!
-response = requests.post(
+// Execute it!
+using var client = new HttpClient();
+var response = await client.PostAsJsonAsync(
     "http://127.0.0.1:8188/prompt",
-    json={"prompt": workflow, "client_id": str(uuid.uuid4())}
-)
+    new { prompt = workflow, client_id = Guid.NewGuid().ToString() }
+);
 
-if response.status_code == 200:
-    result = response.json()
-    print(f"✓ Workflow queued! ID: {result['prompt_id']}")
-    # Image will be saved to ComfyUI/output/quickstart_*.png
-else:
-    print(f"✗ Error: {response.json()}")
+if (response.IsSuccessStatusCode)
+{
+    var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+    var promptId = result.GetProperty("prompt_id").GetString();
+    Console.WriteLine($"✓ Workflow queued! ID: {promptId}");
+    // Image will be saved to ComfyUI/output/quickstart_*.png
+}
+else
+{
+    var error = await response.Content.ReadAsStringAsync();
+    Console.WriteLine($"✗ Error: {error}");
+}
 ```
 
 **[See complete quick start guide →](QUICKSTART.md)**
@@ -135,34 +147,39 @@ else:
 ## 🎓 Example Scenarios
 
 ### Text-to-Image Generation
-```python
-# See: examples/simple-workflow-execution.md
-workflow = build_txt2img_workflow(prompt="a serene landscape")
-execute_workflow(workflow)
+```csharp
+// See: examples/simple-workflow-execution.md
+var workflow = BuildTxt2ImgWorkflow(prompt: "a serene landscape");
+await ExecuteWorkflowAsync(workflow);
 ```
 
 ### Image-to-Image Modification
-```python
-# See: examples/image-upload-workflow.md
-uploaded = upload_image("input.png")
-workflow = build_img2img_workflow(uploaded, strength=0.6)
-execute_workflow(workflow)
+```csharp
+// See: examples/image-upload-workflow.md
+var uploaded = await UploadImageAsync("input.png");
+var workflow = BuildImg2ImgWorkflow(uploaded, strength: 0.6);
+await ExecuteWorkflowAsync(workflow);
 ```
 
 ### Real-time Progress Monitoring
-```python
-# See: examples/websocket-monitoring.md
-async with websockets.connect(ws_url) as websocket:
-    async for message in websocket:
-        handle_progress_update(message)
+```csharp
+// See: examples/websocket-monitoring.md
+using var websocket = new ClientWebSocket();
+await websocket.ConnectAsync(wsUrl, CancellationToken.None);
+await foreach (var message in ReceiveMessagesAsync(websocket))
+{
+    HandleProgressUpdate(message);
+}
 ```
 
 ### Batch Processing
-```python
-# See: examples/download-outputs.md
-for image_path in image_list:
-    upload_and_process(image_path)
-    download_result()
+```csharp
+// See: examples/download-outputs.md
+foreach (var imagePath in imageList)
+{
+    await UploadAndProcessAsync(imagePath);
+    await DownloadResultAsync();
+}
 ```
 
 ---
