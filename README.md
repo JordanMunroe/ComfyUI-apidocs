@@ -18,6 +18,9 @@ I do have plans to test everything at some point to ensure accuracy.
 
 ## 📚 Documentation
 
+### 🔧 [Setup Guide](SETUP.md)
+**New to ComfyUI?** Complete installation guide for Windows, Linux, macOS, and Docker.
+
 ### 🎯 [Quick Start Guide](QUICKSTART.md) 
 **Start here!** Get running in 5 minutes with working examples.
 
