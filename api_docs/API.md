@@ -239,25 +239,29 @@ The most common preview format, using JPEG or PNG encoding.
 [Image bytes in specified format]
 ```
 
-**Example Decoding (Python):**
-```python
-import struct
-from PIL import Image
-from io import BytesIO
+**Example Decoding (Node.js):**
+```javascript
+import { readFile, writeFile } from 'node:fs/promises';
 
-def decode_preview_image(binary_data):
-    # First 4 bytes: event type (should be 1)
-    event_type = struct.unpack('>I', binary_data[0:4])[0]
-    
-    # Next 4 bytes: image format
-    image_format = struct.unpack('>I', binary_data[4:8])[0]
-    format_name = "JPEG" if image_format == 1 else "PNG"
-    
-    # Remaining bytes: image data
-    image_data = binary_data[8:]
-    image = Image.open(BytesIO(image_data))
-    
-    return image, format_name
+function decodePreviewImage(buffer) {
+  const eventType = buffer.readUInt32BE(0);
+  if (eventType !== 1) throw new Error(`Unexpected event type: ${eventType}`);
+
+  const formatCode = buffer.readUInt32BE(4);
+  const mimeType = formatCode === 1 ? 'image/jpeg' : 'image/png';
+  const imageBytes = buffer.subarray(8);
+
+  return { mimeType, imageBytes };
+}
+
+async function savePreviewExample(pathToBinary) {
+  const binary = await readFile(pathToBinary);
+  const { mimeType, imageBytes } = decodePreviewImage(binary);
+  const extension = mimeType === 'image/jpeg' ? 'jpg' : 'png';
+  await writeFile(`preview.${extension}`, imageBytes);
+}
+
+// usage: await savePreviewExample('preview.bin');
 ```
 
 #### Binary Preview with Metadata (Type 4)
@@ -284,30 +288,32 @@ Enhanced preview that includes contextual metadata along with the image.
 }
 ```
 
-**Example Decoding (Python):**
-```python
-import struct
-import json
-from PIL import Image
-from io import BytesIO
+**Example Decoding (Node.js):**
+```javascript
+import { readFile } from 'node:fs/promises';
 
-def decode_preview_with_metadata(binary_data):
-    # First 4 bytes: event type (should be 4)
-    event_type = struct.unpack('>I', binary_data[0:4])[0]
-    
-    # Next 4 bytes: metadata length
-    metadata_length = struct.unpack('>I', binary_data[4:8])[0]
-    
-    # Extract metadata JSON
-    metadata_end = 8 + metadata_length
-    metadata_json = binary_data[8:metadata_end].decode('utf-8')
-    metadata = json.loads(metadata_json)
-    
-    # Remaining bytes: image data
-    image_data = binary_data[metadata_end:]
-    image = Image.open(BytesIO(image_data))
-    
-    return image, metadata
+function decodePreviewWithMetadata(buffer) {
+  const eventType = buffer.readUInt32BE(0);
+  if (eventType !== 4) throw new Error(`Unexpected event type: ${eventType}`);
+
+  const metadataLength = buffer.readUInt32BE(4);
+  const metadataStart = 8;
+  const metadataEnd = metadataStart + metadataLength;
+  const metadataJson = buffer.subarray(metadataStart, metadataEnd).toString('utf-8');
+  const metadata = JSON.parse(metadataJson);
+  const imageBytes = buffer.subarray(metadataEnd);
+
+  return { metadata, imageBytes };
+}
+
+async function decodeFromFile(pathToBinary) {
+  const binary = await readFile(pathToBinary);
+  const { metadata, imageBytes } = decodePreviewWithMetadata(binary);
+  console.log('Preview metadata:', metadata);
+  return imageBytes;
+}
+
+// usage: await decodeFromFile('preview_with_metadata.bin');
 ```
 
 ### Implementing Preview Support
@@ -367,58 +373,53 @@ ws.onmessage = async (event) => {
 };
 ```
 
-#### Python Example with WebSocket Client
+#### Node.js Example with WebSocket Client
 
-```python
-import websockets
-import asyncio
-import struct
-import json
-from PIL import Image
-from io import BytesIO
+```javascript
+import WebSocket from 'ws';
+import { writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 
-async def monitor_previews(client_id):
-    uri = f"ws://127.0.0.1:8188/ws?clientId={client_id}"
-    
-    async with websockets.connect(uri) as websocket:
-        async for message in websocket:
-            if isinstance(message, bytes):
-                # Binary preview message
-                event_type = struct.unpack('>I', message[0:4])[0]
-                
-                if event_type == 1:
-                    # PREVIEW_IMAGE
-                    image_format = struct.unpack('>I', message[4:8])[0]
-                    image_data = message[8:]
-                    image = Image.open(BytesIO(image_data))
-                    
-                    # Save or display preview
-                    image.save(f'preview_{int(time.time())}.png')
-                    print(f"Received preview: {image.size}")
-                    
-                elif event_type == 4:
-                    # PREVIEW_IMAGE_WITH_METADATA
-                    metadata_length = struct.unpack('>I', message[4:8])[0]
-                    metadata_json = message[8:8+metadata_length].decode('utf-8')
-                    metadata = json.loads(metadata_json)
-                    
-                    image_data = message[8+metadata_length:]
-                    image = Image.open(BytesIO(image_data))
-                    
-                    print(f"Preview with metadata: {metadata}")
-                    image.save(f'preview_step_{metadata.get("step", 0)}.png')
-                    
-            else:
-                # JSON message
-                msg = json.loads(message)
-                
-                if msg['type'] == 'progress':
-                    data = msg['data']
-                    percent = (data['value'] / data['max']) * 100
-                    print(f"Progress: {percent:.1f}% ({data['value']}/{data['max']})")
+const clientId = randomUUID();
+const ws = new WebSocket(`ws://127.0.0.1:8188/ws?clientId=${clientId}`);
 
-# Run the monitor
-asyncio.run(monitor_previews("my-client-id"))
+ws.on('open', () => console.log('Connected to ComfyUI'));
+ws.on('close', () => console.log('Connection closed'));
+ws.on('error', (err) => console.error('WebSocket error', err));
+
+ws.on('message', async (data) => {
+  if (Buffer.isBuffer(data)) {
+    const eventType = data.readUInt32BE(0);
+
+    if (eventType === 1) {
+      const formatCode = data.readUInt32BE(4);
+      const extension = formatCode === 1 ? 'jpg' : 'png';
+      const imageBytes = data.subarray(8);
+      await writeFile(`preview_${Date.now()}.${extension}`, imageBytes);
+      console.log('Saved preview image');
+
+    } else if (eventType === 4) {
+      const metadataLength = data.readUInt32BE(4);
+      const metadataStart = 8;
+      const metadataEnd = metadataStart + metadataLength;
+      const metadataJson = data.subarray(metadataStart, metadataEnd).toString('utf-8');
+      const metadata = JSON.parse(metadataJson);
+      const imageBytes = data.subarray(metadataEnd);
+      await writeFile(`preview_step_${metadata.step ?? 'unknown'}.png`, imageBytes);
+      console.log('Preview with metadata:', metadata);
+    }
+
+  } else {
+    const msg = JSON.parse(data.toString());
+    if (msg.type === 'progress') {
+      const { value, max } = msg.data;
+      const percent = ((value / max) * 100).toFixed(1);
+      console.log(`Progress: ${percent}% (${value}/${max})`);
+    } else {
+      console.log('Event:', msg.type);
+    }
+  }
+});
 ```
 
 ### Preview Configuration
@@ -1580,14 +1581,14 @@ Proper error handling is crucial for building robust ComfyUI integrations. Comfy
 
 ## Examples
 
-These practical examples demonstrate common ComfyUI API usage patterns. Each example is self-contained and shows best practices for specific tasks. The examples use Python and JavaScript to cover both server-side and browser-based implementations.
+These practical examples demonstrate common ComfyUI API usage patterns. Each example is self-contained and shows best practices for specific tasks. The examples use JavaScript (Node.js and browser) to cover both server-side and browser-based implementations.
 
 **📚 Detailed Examples (Separate Files):**
 
 For comprehensive, production-ready examples with detailed explanations:
 
 1. **[Simple Workflow Execution](./examples/simple-workflow-execution.md)** - Complete guide to constructing and executing workflows
-2. **[WebSocket Monitoring and Progress Tracking](./examples/websocket-monitoring.md)** - Real-time execution monitoring with Python and JavaScript examples
+2. **[WebSocket Monitoring and Progress Tracking](./examples/websocket-monitoring.md)** - Real-time execution monitoring with Node.js and browser JavaScript examples
 3. **[Image Upload and Image-to-Image Workflow](./examples/image-upload-workflow.md)** - Upload images and create img2img workflows
 4. **[Download Generated Images](./examples/download-outputs.md)** - Retrieve and save generated outputs
 
@@ -1601,153 +1602,168 @@ Below are quick snippets for common tasks. For complete, production-ready code, 
 
 ### Example 1: Execute a Simple Workflow
 
-```python
-import requests
-import json
-
-# Define a simple workflow
-workflow = {
-    "1": {
-        "inputs": {
-            "ckpt_name": "model.safetensors"
-        },
-        "class_type": "CheckpointLoaderSimple"
+```javascript
+// Run with Node 18+ for global fetch support (or import 'node-fetch').
+const workflow = {
+  "1": {
+    "inputs": {
+      "ckpt_name": "model.safetensors"
     },
-    "2": {
-        "inputs": {
-            "text": "a beautiful landscape",
-            "clip": ["1", 1]
-        },
-        "class_type": "CLIPTextEncode"
-    }
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "2": {
+    "inputs": {
+      "text": "a beautiful landscape",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  }
+};
+
+async function queuePrompt() {
+  const response = await fetch('http://127.0.0.1:8188/prompt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: workflow,
+      client_id: 'my-client-id'
+    })
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const result = await response.json();
+  console.log(`Prompt ID: ${result.prompt_id}`);
 }
 
-# Queue the prompt
-response = requests.post(
-    "http://127.0.0.1:8188/prompt",
-    json={
-        "prompt": workflow,
-        "client_id": "my-client-id"
-    }
-)
-
-result = response.json()
-print(f"Prompt ID: {result['prompt_id']}")
+queuePrompt().catch(console.error);
 ```
 
 **💡 See Also:** [Complete workflow execution example](./examples/simple-workflow-execution.md) with detailed node explanations
 
 ### Example 2: Monitor Execution via WebSocket
 
-```python
-import websocket
-import json
-import uuid
+```javascript
+// npm install ws (Node.js WebSocket client)
+import WebSocket from 'ws';
+import { randomUUID } from 'node:crypto';
 
-client_id = str(uuid.uuid4())
+const clientId = randomUUID();
+const ws = new WebSocket(`ws://127.0.0.1:8188/ws?clientId=${clientId}`);
 
-def on_message(ws, message):
-    data = json.loads(message)
-    print(f"Event: {data['type']}")
-    if data['type'] == 'executing':
-        print(f"Currently executing node: {data['data']['node']}")
-    elif data['type'] == 'executed':
-        print(f"Node executed with outputs: {data['data']['output']}")
+ws.on('open', () => console.log('WebSocket connected'));
+ws.on('close', () => console.log('WebSocket closed'));
+ws.on('error', (err) => console.error('WebSocket error', err));
 
-ws = websocket.WebSocketApp(
-    f"ws://127.0.0.1:8188/ws?clientId={client_id}",
-    on_message=on_message
-)
-ws.run_forever()
+ws.on('message', (payload) => {
+  const data = JSON.parse(payload.toString());
+  console.log(`Event: ${data.type}`);
+  if (data.type === 'executing') {
+    console.log(`Currently executing node: ${data.data.node}`);
+  } else if (data.type === 'executed') {
+    console.log('Node outputs:', data.data.output);
+  }
+});
 ```
 
 **💡 See Also:** [Complete WebSocket monitoring example](./examples/websocket-monitoring.md) with preview image handling
 
 ### Example 3: Upload and Use an Image
 
-```python
-import requests
+```javascript
+// Node 18+ exposes FormData and Blob globally.
+import { readFile } from 'node:fs/promises';
 
-# Upload image
-with open("input.png", "rb") as f:
-    files = {"image": f}
-    data = {"type": "input", "subfolder": ""}
-    response = requests.post(
-        "http://127.0.0.1:8188/upload/image",
-        files=files,
-        data=data
-    )
+async function uploadAndUseImage() {
+  const formData = new FormData();
+  const fileBuffer = await readFile('input.png');
+  formData.append('image', new Blob([fileBuffer], { type: 'image/png' }), 'input.png');
+  formData.append('type', 'input');
+  formData.append('subfolder', '');
 
-upload_result = response.json()
-print(f"Uploaded: {upload_result['name']}")
+  const response = await fetch('http://127.0.0.1:8188/upload/image', {
+    method: 'POST',
+    body: formData
+  });
 
-# Use in workflow
-workflow = {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const uploadResult = await response.json();
+  console.log(`Uploaded: ${uploadResult.name}`);
+
+  const workflow = {
     "1": {
-        "inputs": {
-            "image": upload_result['name']
-        },
-        "class_type": "LoadImage"
+      "inputs": {
+        "image": uploadResult.name
+      },
+      "class_type": "LoadImage"
     }
+  };
+
+  return workflow;
 }
+
+uploadAndUseImage().catch(console.error);
 ```
 
 **💡 See Also:** [Complete image upload and img2img example](./examples/image-upload-workflow.md) with mask support
 
 ### Example 4: Check Queue Status
 
-```python
-import requests
+```javascript
+async function checkQueue() {
+  const response = await fetch('http://127.0.0.1:8188/queue');
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const queueData = await response.json();
 
-response = requests.get("http://127.0.0.1:8188/queue")
-queue_data = response.json()
+  console.log(`Running: ${queueData.queue_running.length} items`);
+  console.log(`Pending: ${queueData.queue_pending.length} items`);
+}
 
-print(f"Running: {len(queue_data['queue_running'])} items")
-print(f"Pending: {len(queue_data['queue_pending'])} items")
+checkQueue().catch(console.error);
 ```
 
 ### Example 5: Get Execution History
 
-```python
-import requests
+```javascript
+async function loadHistory() {
+  const response = await fetch('http://127.0.0.1:8188/history?max_items=10');
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const history = await response.json();
 
-# Get recent history
-response = requests.get(
-    "http://127.0.0.1:8188/history",
-    params={"max_items": 10}
-)
+  Object.entries(history).forEach(([promptId, data]) => {
+    console.log(`Prompt: ${promptId}`);
+    console.log(`Status: ${data.status.status_str}`);
 
-history = response.json()
-for prompt_id, data in history.items():
-    print(f"Prompt: {prompt_id}")
-    print(f"Status: {data['status']['status_str']}")
-    if 'outputs' in data:
-        for node_id, outputs in data['outputs'].items():
-            if 'images' in outputs:
-                for img in outputs['images']:
-                    print(f"  Image: {img['filename']}")
+    if (data.outputs) {
+      Object.values(data.outputs).forEach((output) => {
+        output.images?.forEach((img) => {
+          console.log(`  Image: ${img.filename}`);
+        });
+      });
+    }
+  });
+}
+
+loadHistory().catch(console.error);
 ```
 
 **💡 See Also:** [Complete history and download example](./examples/download-outputs.md) with batch downloading
 
 ### Example 6: Download Generated Image
 
-```python
-import requests
+```javascript
+import { writeFile } from 'node:fs/promises';
 
-# From history, get image info
-filename = "ComfyUI_00001_.png"
+async function downloadImage(filename) {
+  const query = new URLSearchParams({ filename, type: 'output' });
+  const response = await fetch(`http://127.0.0.1:8188/view?${query.toString()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-response = requests.get(
-    "http://127.0.0.1:8188/view",
-    params={
-        "filename": filename,
-        "type": "output"
-    }
-)
+  const imageBuffer = Buffer.from(await response.arrayBuffer());
+  await writeFile('output.png', imageBuffer);
+  console.log('Saved output.png');
+}
 
-with open("output.png", "wb") as f:
-    f.write(response.content)
+downloadImage('ComfyUI_00001_.png').catch(console.error);
 ```
 
 **💡 See Also:** [Complete history and download example](./examples/download-outputs.md) with batch downloading
@@ -1761,7 +1777,7 @@ The quick examples above are meant for reference. For production-ready code with
 | Example | What You'll Learn |
 |---------|-------------------|
 | [Simple Workflow Execution](./examples/simple-workflow-execution.md) | Complete workflow construction, node connections, error handling, and workflow anatomy |
-| [WebSocket Monitoring](./examples/websocket-monitoring.md) | Real-time monitoring with Python async and JavaScript, binary preview handling, progress tracking |
+| [WebSocket Monitoring](./examples/websocket-monitoring.md) | Real-time monitoring with Node.js and browser JavaScript, binary preview handling, progress tracking |
 | [Image Upload & img2img](./examples/image-upload-workflow.md) | Upload API, image-to-image workflows, VAE encoding, inpainting with masks, format conversion |
 | [Download Outputs](./examples/download-outputs.md) | History queries, batch downloading, format conversion, alpha channel extraction, verification |
 
