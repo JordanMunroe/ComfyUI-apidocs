@@ -77,7 +77,7 @@ When the `--enable-manager` flag is used, additional manager-related middleware 
 
 ## WebSocket Connection
 
-WebSocket connections provide real-time, bidirectional communication between your client and ComfyUI server. This is the recommended way to monitor workflow execution, receive progress updates, and get live preview images. The WebSocket connection remains open throughout your session, allowing the server to push updates to your client immediately as they occur, rather than requiring you to poll for status changes.
+WebSocket connections provide real-time, bidirectional communication between your client and ComfyUI server. This is the recommended way to monitor workflow execution, receive progress updates, and get live preview images. The WebSocket connection remains open throughout your session, allowing the server to push updates to your client immediately as they occur, rather than requiring you to poll for status changes. See [WebSocket Messages](./websocket_messages.md) for the full list of events and payload schemas.
 
 **Key Benefits:**
 - Real-time execution updates and progress tracking
@@ -157,7 +157,7 @@ The server can also send binary messages for efficient image preview transmissio
 
 ## Previews and Progress Tracking
 
-Previews are one of ComfyUI's most powerful features for monitoring long-running image generation workflows. During execution, ComfyUI can send progressive preview images showing the current state of generation, allowing users to see results in real-time and make informed decisions about whether to continue or interrupt the process. Preview images are transmitted via WebSocket using efficient binary encoding to minimize bandwidth while maintaining responsiveness.
+Previews are one of ComfyUI's most powerful features for monitoring long-running image generation workflows. During execution, ComfyUI can send progressive preview images showing the current state of generation, allowing users to see results in real-time and make informed decisions about whether to continue or interrupt the process. Preview images are transmitted via WebSocket using efficient binary encoding to minimize bandwidth while maintaining responsiveness. For end-to-end retrieval patterns (WebSocket previews + HTTP downloads), refer to [Preview & Output Retrieval](./previews_and_outputs.md).
 
 **Key Features:**
 - Real-time progress updates during workflow execution

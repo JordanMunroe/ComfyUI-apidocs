@@ -10,7 +10,9 @@ The ComfyUI API reference is now organized into focused guides so you can jump s
 4. **[Operations & Administration](./operations.md)** — User management, settings, system stats, subgraphs/templates, and internal routes.
 5. **[Error Handling](./error_handling.md)** — Response formats, status codes, and common failure modes.
 6. **[Examples](./examples.md)** — JavaScript quick-start snippets plus links to detailed walkthroughs.
-7. **[Appendix](./appendix.md)** — Best practices, changelog pointers, and support resources.
+7. **[WebSocket Messages](./websocket_messages.md)** — Full catalog of JSON events and binary signals emitted over `/ws`.
+8. **[Preview & Output Retrieval](./previews_and_outputs.md)** — Strategies for streaming previews via WebSocket and downloading final artifacts over HTTP.
+9. **[Appendix](./appendix.md)** — Best practices, changelog pointers, and support resources.
 
 ## Using This Documentation
 

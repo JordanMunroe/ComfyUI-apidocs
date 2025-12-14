@@ -23,6 +23,58 @@ This section covers the primary endpoints for interacting with ComfyUI. These en
 
 Workflow execution is the heart of ComfyUI's functionality. Workflows are defined as directed graphs of nodes, where each node represents an operation (like loading a model, encoding text, or generating an image). When you submit a workflow, it's added to an execution queue and processed node by node. The system automatically handles dependencies, caching, and parallel execution where possible.
 
+### Building Prompts & Workflows
+
+Use these steps to design reliable workflows before you call the queue endpoints:
+
+1. **Clarify the outputs** – List the artifacts you need (e.g., images, embeddings) and which nodes must act as outputs. This keeps the graph focused and prevents unused branches.
+2. **Inventory available nodes** – Query `/object_info` to confirm the exact input/output signatures, defaults, and categories for the nodes you plan to use. Align versions between your client and server to avoid mismatched parameters.
+3. **Sketch the dependency graph** – On paper or in a diagram tool, lay out how data should flow. Start from required inputs (text prompts, models, control images) and work toward the outputs, ensuring each node has its prerequisites satisfied.
+4. **Define stable node IDs** – Assign deterministic string IDs ("1", "text_encoder", etc.) so you can reuse cached results, patch individual nodes, and reference targets in `partial_execution_targets`.
+5. **Normalize inputs** – Encode file paths, prompt text, seeds, and control weights consistently. If you must pass secrets (tokens, API keys), rely on the `extra_data` sanitization and never place them inside node definitions.
+6. **Stage metadata early** – Fill `extra_data.extra_pnginfo.workflow` (or similar) with the exact workflow graph. This makes downstream auditing and UI inspection easier because the queue/history endpoints echo the metadata.
+7. **Test incrementally** – Use `partial_execution_targets` to run only the upstream segments while you debug. Confirm intermediate tensors/images via history outputs before enabling the full graph.
+8. **Handle branching outputs** – When multiple outputs are expected, set `outputs_to_execute` on the prompt so you can track which branch produced which artifact, then read the matching entries from `/history`.
+9. **Version control prompts** – Store workflow JSON next to your codebase or in a database so changes are reviewable. Include the ComfyUI commit hash or `/system_stats` snapshot for reproducibility.
+
+Once the workflow blueprint is stable, serialize it into the `prompt` map, include any `client_id` required for synchronization with your frontend, and submit via `/prompt`. Example skeleton:
+
+```json
+{
+  "prompt": {
+    "load_checkpoint": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": "SDXL.safetensors"
+      }
+    },
+    "text_positive": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "an ornate glass terrarium, volumetric lighting"
+      }
+    },
+    "k_sampler": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": ["load_checkpoint", 0],
+        "positive": ["text_positive", 0],
+        "seed": 123456789,
+        "cfg": 7
+      }
+    }
+  },
+  "client_id": "frontend-session-42",
+  "extra_data": {
+    "extra_pnginfo": {
+      "workflow": "v1.0-terraruim" 
+    }
+  }
+}
+```
+
+This prompt map can be extended with additional branches or updated IDs without rewriting the entire graph, enabling safe iteration and CI-driven regression runs.
+
 ### Queue Prompt
 
 Execute a workflow by adding it to the queue.

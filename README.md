@@ -10,9 +10,7 @@
 This documentation was created to provide comprehensive API reference for my own use. I've decided to also make it available to the comfy community as there seems to be zero documentation currently.
 
 ## Disclaimer
-Generated from the ComfyUI source code using AI, mostly claude as it seems to do the best job of understanding the entire project, so some of the documentation may be incorrect, it is intended as more of a starting point and experimentation will be required.
-
-I do have plans to test everything at some point to ensure accuracy.
+Generated from the ComfyUI source code using AI so some of the documentation may be incorrect, it is intended as more of a starting point and experimentation will be required.
 
 ---
 
