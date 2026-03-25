@@ -67,35 +67,38 @@ ws.on('message', (payload, isBinary) => {
 });
 ```
 
-### Python snippet (websocket-client)
+### Browser example
 
-```python
-import websocket, json, uuid
-from io import BytesIO
-from PIL import Image
+```javascript
+const clientId = crypto.randomUUID();
+const ws = new WebSocket(`ws://127.0.0.1:8188/ws?clientId=${clientId}`);
 
-client_id = uuid.uuid4().hex
-ws = websocket.WebSocket()
-ws.connect(f"ws://127.0.0.1:8188/ws?clientId={client_id}")
-ws.send(json.dumps({"type": "feature_flags", "data": {"supports_preview_metadata": True}}))
+ws.addEventListener('open', () => {
+  ws.send(JSON.stringify({ type: 'feature_flags', data: { supports_preview_metadata: true } }));
+});
 
-while True:
-    frame = ws.recv()
-    if isinstance(frame, str):
-        message = json.loads(frame)
-        if message["type"] == "execution_success":
-            print("Run finished", message["data"]["prompt_id"])
-            break
-        continue
+ws.addEventListener('message', async (event) => {
+  if (typeof event.data === 'string') {
+    const message = JSON.parse(event.data);
+    if (message.type === 'execution_success') {
+      console.log('Run finished', message.data.prompt_id);
+      ws.close();
+    }
+    return;
+  }
 
-    event_type = int.from_bytes(frame[:4], "big")
-    if event_type != 4:
-        continue
-    meta_len = int.from_bytes(frame[4:8], "big")
-    metadata = json.loads(frame[8:8 + meta_len])
-    img_bytes = frame[8 + meta_len:]
-    preview = Image.open(BytesIO(img_bytes))
-    preview.save(f"preview_{metadata['display_node_id']}.jpg")
+  const buffer = await event.data.arrayBuffer();
+  const view = new DataView(buffer);
+  const eventType = view.getUint32(0);
+  if (eventType !== 4) return;
+  const metadataLength = view.getUint32(4);
+  const metaBytes = new Uint8Array(buffer, 8, metadataLength);
+  const metadata = JSON.parse(new TextDecoder().decode(metaBytes));
+  const imageBytes = new Uint8Array(buffer, 8 + metadataLength);
+  const blob = new Blob([imageBytes], { type: 'image/jpeg' });
+  const url = URL.createObjectURL(blob);
+  console.log(`Preview for ${metadata.display_node_id}:`, url);
+});
 ```
 
 > **Tip:** Keep the WebSocket open even after a workflow finishes to reuse the session for subsequent prompts. ComfyUI automatically cleans up old sockets when you reconnect with the same `clientId`.
@@ -110,8 +113,11 @@ Even though previews travel over WebSocket, the authoritative artifacts still li
 - Each node entry under `outputs` contains an `images` array. Every image describes `filename`, `subfolder`, and `type` (usually `output`, `temp`, or `input`).
 - `GET /history?max_items=10&offset=0` paginates recent prompts if you do not track IDs client-side.
 
-```bash
-curl http://127.0.0.1:8188/history/550e8400-e29b-41d4-a716-446655440000 | jq '."550e8400-e29b-41d4-a716-446655440000".outputs'
+```javascript
+const promptId = "550e8400-e29b-41d4-a716-446655440000";
+const response = await fetch(`http://127.0.0.1:8188/history/${promptId}`);
+const history = await response.json();
+console.log(history[promptId].outputs);
 ```
 
 ### 2. Download the file with `/view`

@@ -24,6 +24,13 @@ Models are the AI components that power ComfyUI's generation capabilities. Comfy
 ]
 ```
 
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/models");
+const modelTypes = await response.json();
+console.log("Available model types:", modelTypes);
+```
+
 ### List Models in Folder
 
 **Endpoint:** `GET /models/{folder}`
@@ -38,6 +45,13 @@ Models are the AI components that power ComfyUI's generation capabilities. Comfy
   "model2.ckpt",
   "subfolder/model3.safetensors"
 ]
+```
+
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/models/checkpoints");
+const checkpoints = await response.json();
+console.log("Available checkpoints:", checkpoints);
 ```
 
 ### Get Model Metadata (Safetensors)
@@ -155,6 +169,24 @@ Image management is crucial for workflows that require input images (like img2im
 - Duplicate images (same content hash) are not saved again - the existing filename is returned
 - Supported formats include PNG, JPEG, WEBP, and other common image formats
 
+**Example:**
+```javascript
+// Node.js (18+)
+import { readFile } from 'node:fs/promises';
+
+const fileBuffer = await readFile('photo.png');
+const formData = new FormData();
+formData.append('image', new Blob([fileBuffer], { type: 'image/png' }), 'photo.png');
+formData.append('type', 'input');
+
+const response = await fetch('http://127.0.0.1:8188/upload/image', {
+  method: 'POST',
+  body: formData,
+});
+const { name, subfolder, type } = await response.json();
+console.log(`Uploaded as: ${name} (type: ${type})`);
+```
+
 ### Upload Mask
 
 **Endpoint:** `POST /upload/mask`
@@ -203,6 +235,24 @@ Image management is crucial for workflows that require input images (like img2im
 - `/view?filename=subfolder/image.png&subfolder=myfolder&type=input`
 
 **Note:** The preview parameter allows for on-the-fly image conversion and compression without modifying the original file.
+
+**Example:**
+```javascript
+// Download a generated output image
+async function downloadImage(filename, subfolder = '', type = 'output') {
+  const params = new URLSearchParams({ filename, subfolder, type });
+  const response = await fetch(`http://127.0.0.1:8188/view?${params}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.arrayBuffer();
+}
+
+// Fetch as a WebP preview at quality 85
+async function fetchPreview(filename) {
+  const params = new URLSearchParams({ filename, type: 'output', preview: 'webp;85' });
+  const response = await fetch(`http://127.0.0.1:8188/view?${params}`);
+  return URL.createObjectURL(await response.blob()); // browser object URL
+}
+```
 
 ---
 

@@ -145,6 +145,23 @@ Execute a workflow by adding it to the queue.
 }
 ```
 
+**Example:**
+```javascript
+const workflow = {
+  "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "model.safetensors" } },
+  "2": { "class_type": "CLIPTextEncode", "inputs": { "text": "a beautiful landscape", "clip": ["1", 1] } }
+};
+
+const response = await fetch("http://127.0.0.1:8188/prompt", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt: workflow, client_id: crypto.randomUUID() }),
+});
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const { prompt_id } = await response.json();
+console.log("Queued prompt ID:", prompt_id);
+```
+
 ### Get Current Prompt Status
 
 **Endpoint:** `GET /prompt`
@@ -156,6 +173,13 @@ Execute a workflow by adding it to the queue.
     "queue_remaining": 5
   }
 }
+```
+
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/prompt");
+const { exec_info } = await response.json();
+console.log("Queue remaining:", exec_info.queue_remaining);
 ```
 
 ---
@@ -184,6 +208,13 @@ The queue system manages all workflow executions in ComfyUI. It maintains two se
 
 **Note:** Queue items are returned with only the first 5 elements (number, prompt_id, prompt, extra_data, outputs_to_execute). Sensitive data is removed for security.
 
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/queue");
+const { queue_running, queue_pending } = await response.json();
+console.log(`Running: ${queue_running.length}, Pending: ${queue_pending.length}`);
+```
+
 ### Manage Queue
 
 **Endpoint:** `POST /queue`
@@ -204,6 +235,23 @@ The queue system manages all workflow executions in ComfyUI. It maintains two se
 
 **Response:** `200 OK`
 
+**Example:**
+```javascript
+// Clear the entire queue
+await fetch("http://127.0.0.1:8188/queue", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ clear: true }),
+});
+
+// Delete specific items
+await fetch("http://127.0.0.1:8188/queue", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ delete: ["prompt_id_1", "prompt_id_2"] }),
+});
+```
+
 ### Interrupt Execution
 
 **Endpoint:** `POST /interrupt`
@@ -221,6 +269,19 @@ The queue system manages all workflow executions in ComfyUI. It maintains two se
 - If `prompt_id` is provided, only interrupts that specific prompt if it's currently running.
 - If no `prompt_id` is provided, performs a global interrupt of the currently executing prompt.
 - If the specified `prompt_id` is not currently running, no interrupt occurs (logged but no error).
+
+**Example:**
+```javascript
+// Interrupt the currently running prompt
+await fetch("http://127.0.0.1:8188/interrupt", { method: "POST" });
+
+// Interrupt a specific prompt by ID
+await fetch("http://127.0.0.1:8188/interrupt", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt_id: "specific-prompt-id-to-interrupt" }),
+});
+```
 
 ### Free Memory
 
@@ -241,6 +302,15 @@ The queue system manages all workflow executions in ComfyUI. It maintains two se
 **Response:** `200 OK`
 
 **Note:** This endpoint sets flags that are processed by the execution queue. The actual memory freeing happens asynchronously during queue processing.
+
+**Example:**
+```javascript
+await fetch("http://127.0.0.1:8188/free", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ unload_models: true, free_memory: true }),
+});
+```
 
 ---
 
@@ -311,6 +381,17 @@ Nodes are the building blocks of ComfyUI workflows. Each node represents a speci
 
 **Response:** Same format as above, but only for the specified node.
 
+**Example:**
+```javascript
+// Get info for all nodes
+const allNodes = await (await fetch("http://127.0.0.1:8188/object_info")).json();
+console.log("Available nodes:", Object.keys(allNodes));
+
+// Get info for a specific node
+const nodeInfo = await (await fetch("http://127.0.0.1:8188/object_info/KSampler")).json();
+console.log("KSampler inputs:", nodeInfo.KSampler.input.required);
+```
+
 ---
 
 ## History
@@ -352,6 +433,20 @@ The history system maintains a record of all completed workflow executions, incl
 
 **Note:** The response is a dictionary where keys are prompt IDs and values contain execution details.
 
+**Example:**
+```javascript
+// Get recent history (last 10 items)
+const response = await fetch("http://127.0.0.1:8188/history?max_items=10");
+const history = await response.json();
+
+Object.entries(history).forEach(([promptId, data]) => {
+  console.log(`Prompt ${promptId}: ${data.status.status_str}`);
+  Object.values(data.outputs ?? {}).forEach((output) => {
+    output.images?.forEach((img) => console.log("  Image:", img.filename));
+  });
+});
+```
+
 ### Get Specific Prompt History
 
 **Endpoint:** `GET /history/{prompt_id}`
@@ -360,6 +455,16 @@ The history system maintains a record of all completed workflow executions, incl
 - `prompt_id`: The prompt ID to retrieve
 
 **Response:** Same format as above, filtered to the specified prompt.
+
+**Example:**
+```javascript
+const promptId = "550e8400-e29b-41d4-a716-446655440000";
+const response = await fetch(`http://127.0.0.1:8188/history/${promptId}`);
+const history = await response.json();
+const entry = history[promptId];
+console.log("Status:", entry.status.status_str);
+console.log("Outputs:", entry.outputs);
+```
 
 ### Manage History
 
@@ -380,3 +485,20 @@ The history system maintains a record of all completed workflow executions, incl
 ```
 
 **Response:** `200 OK`
+
+**Example:**
+```javascript
+// Clear all history
+await fetch("http://127.0.0.1:8188/history", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ clear: true }),
+});
+
+// Delete specific history entries
+await fetch("http://127.0.0.1:8188/history", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ delete: ["prompt_id_1", "prompt_id_2"] }),
+});
+```

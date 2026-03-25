@@ -34,15 +34,6 @@ python main.py --listen 0.0.0.0
 
 No special headers or tokens are required.
 
-**Python**
-```python
-import requests
-
-response = requests.get("http://127.0.0.1:8188/system_stats")
-print(response.json())
-```
-
-**JavaScript (fetch)**
 ```javascript
 const response = await fetch("http://127.0.0.1:8188/system_stats");
 const data = await response.json();
@@ -69,30 +60,6 @@ python main.py --multi-user --listen 0.0.0.0
 
 Include the `comfy-user` header with the user's identifier on every request.
 
-**Python**
-```python
-import requests
-import uuid
-
-# Use a fixed string or generate a unique ID per user/service
-user_id = "alice"  # or str(uuid.uuid4()) for a random ID
-
-headers = {"comfy-user": user_id}
-
-# Submit a workflow
-response = requests.post(
-    "http://127.0.0.1:8188/prompt",
-    json={"prompt": workflow, "client_id": str(uuid.uuid4())},
-    headers=headers,
-)
-print(response.json())
-
-# Check this user's queue
-queue = requests.get("http://127.0.0.1:8188/queue", headers=headers)
-print(queue.json())
-```
-
-**JavaScript (fetch)**
 ```javascript
 const userId = "alice"; // or crypto.randomUUID()
 const headers = { "comfy-user": userId, "Content-Type": "application/json" };
@@ -141,20 +108,6 @@ On first launch, ComfyUI creates a default admin account:
 
 **Endpoint:** `POST /api/auth/login`
 
-**Python**
-```python
-import requests
-
-response = requests.post(
-    "http://127.0.0.1:8188/api/auth/login",
-    json={"username": "admin", "password": "your_password"},
-)
-response.raise_for_status()
-token = response.json()["token"]
-print(f"Token: {token}")
-```
-
-**JavaScript (fetch)**
 ```javascript
 const response = await fetch("http://127.0.0.1:8188/api/auth/login", {
   method: "POST",
@@ -169,27 +122,6 @@ console.log("Token:", token);
 
 Include the token as a `Bearer` credential in the `Authorization` header on every subsequent request.
 
-**Python**
-```python
-import requests
-import uuid
-
-headers = {"Authorization": f"Bearer {token}"}
-
-# Submit a workflow
-response = requests.post(
-    "http://127.0.0.1:8188/prompt",
-    json={"prompt": workflow, "client_id": str(uuid.uuid4())},
-    headers=headers,
-)
-print(response.json())
-
-# Retrieve queue status
-queue = requests.get("http://127.0.0.1:8188/queue", headers=headers)
-print(queue.json())
-```
-
-**JavaScript (fetch)**
 ```javascript
 const headers = {
   Authorization: `Bearer ${token}`,
@@ -209,39 +141,39 @@ const queue = await fetch("http://127.0.0.1:8188/queue", { headers });
 console.log(await queue.json());
 ```
 
-### Complete Python Example
+### Complete JavaScript Example
 
-```python
-import requests
-import uuid
+```javascript
+const BASE_URL = "http://127.0.0.1:8188";
 
+async function createAuthHeaders(username, password) {
+  const response = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!response.ok) throw new Error(`Login failed: ${response.status}`);
+  const { token } = await response.json();
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
 
-def create_client(base_url: str, username: str, password: str) -> requests.Session:
-    """Log in and return an authenticated session."""
-    session = requests.Session()
+const headers = await createAuthHeaders("admin", "your_password");
 
-    response = session.post(
-        f"{base_url}/api/auth/login",
-        json={"username": username, "password": password},
-    )
-    response.raise_for_status()
-    token = response.json()["token"]
-    session.headers.update({"Authorization": f"Bearer {token}"})
-    return session
+// All subsequent requests use the token automatically
+const statsResponse = await fetch(`${BASE_URL}/system_stats`, { headers });
+const stats = await statsResponse.json();
+console.log("System stats:", stats);
 
-
-BASE_URL = "http://127.0.0.1:8188"
-session = create_client(BASE_URL, "admin", "your_password")
-
-# All subsequent requests use the token automatically
-stats = session.get(f"{BASE_URL}/system_stats").json()
-print("System stats:", stats)
-
-result = session.post(
-    f"{BASE_URL}/prompt",
-    json={"prompt": workflow, "client_id": str(uuid.uuid4())},
-).json()
-print("Queued prompt ID:", result["prompt_id"])
+const promptResponse = await fetch(`${BASE_URL}/prompt`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({ prompt: workflow, client_id: crypto.randomUUID() }),
+});
+const result = await promptResponse.json();
+console.log("Queued prompt ID:", result.prompt_id);
 ```
 
 ### Managing Users
@@ -273,27 +205,6 @@ These keys are never exposed through the queue or history endpoints, even if a c
 
 Pass secrets inside the top-level `extra_data` object of the `/prompt` request body, not inside node inputs. ComfyUI nodes that need external credentials read them from this field.
 
-**Python**
-```python
-import requests
-import uuid
-
-workflow = { /* ... your node graph ... */ }
-
-response = requests.post(
-    "http://127.0.0.1:8188/prompt",
-    json={
-        "prompt": workflow,
-        "client_id": str(uuid.uuid4()),
-        "extra_data": {
-            "auth_token_comfy_org": "your-comfy-org-token",
-            "api_key_comfy_org": "your-api-key",
-        },
-    },
-)
-```
-
-**JavaScript (fetch)**
 ```javascript
 const response = await fetch("http://127.0.0.1:8188/prompt", {
   method: "POST",
@@ -348,48 +259,51 @@ Because tokens are long-lived by default, treat them with the same care as passw
 
 There is no dedicated token-refresh endpoint. When a token becomes invalid, call `POST /api/auth/login` again with valid credentials to obtain a fresh token.
 
-**Python — automatic re-authentication**
-```python
-import requests
-import uuid
+**JavaScript — automatic re-authentication**
+```javascript
+class ComfyClient {
+  constructor(baseUrl, username, password) {
+    this.baseUrl = baseUrl;
+    this.username = username;
+    this.password = password;
+    this.token = null;
+  }
 
+  async authenticate() {
+    const response = await fetch(`${this.baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: this.username, password: this.password }),
+    });
+    if (!response.ok) throw new Error(`Login failed: ${response.status}`);
+    const { token } = await response.json();
+    this.token = token;
+  }
 
-class ComfyClient:
-    def __init__(self, base_url: str, username: str, password: str):
-        self.base_url = base_url
-        self.username = username
-        self.password = password
-        self.session = requests.Session()
-        self._authenticate()
+  async request(method, path, options = {}) {
+    if (!this.token) await this.authenticate();
+    const headers = {
+      Authorization: `Bearer ${this.token}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    };
+    let response = await fetch(`${this.baseUrl}${path}`, { method, ...options, headers });
+    if (response.status === 401) {
+      await this.authenticate();
+      headers.Authorization = `Bearer ${this.token}`;
+      response = await fetch(`${this.baseUrl}${path}`, { method, ...options, headers });
+    }
+    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+    return response;
+  }
 
-    def _authenticate(self):
-        response = self.session.post(
-            f"{self.base_url}/api/auth/login",
-            json={"username": self.username, "password": self.password},
-        )
-        response.raise_for_status()
-        token = response.json()["token"]
-        self.session.headers.update({"Authorization": f"Bearer {token}"})
+  get(path) { return this.request("GET", path); }
+  post(path, body) { return this.request("POST", path, { body: JSON.stringify(body) }); }
+}
 
-    def get(self, path: str, **kwargs):
-        response = self.session.get(f"{self.base_url}{path}", **kwargs)
-        if response.status_code == 401:
-            self._authenticate()
-            response = self.session.get(f"{self.base_url}{path}", **kwargs)
-        response.raise_for_status()
-        return response
-
-    def post(self, path: str, **kwargs):
-        response = self.session.post(f"{self.base_url}{path}", **kwargs)
-        if response.status_code == 401:
-            self._authenticate()
-            response = self.session.post(f"{self.base_url}{path}", **kwargs)
-        response.raise_for_status()
-        return response
-
-
-client = ComfyClient("http://127.0.0.1:8188", "admin", "your_password")
-stats = client.get("/system_stats").json()
+const client = new ComfyClient("http://127.0.0.1:8188", "admin", "your_password");
+const stats = await (await client.get("/system_stats")).json();
+console.log("System stats:", stats);
 ```
 
 ### Revoking a token (logout)
@@ -398,16 +312,6 @@ To invalidate a token before a server restart, call the logout endpoint:
 
 **Endpoint:** `POST /api/auth/logout`
 
-**Python**
-```python
-import requests
-
-headers = {"Authorization": f"Bearer {token}"}
-response = requests.post("http://127.0.0.1:8188/api/auth/logout", headers=headers)
-# 204 No Content on success — the token is now invalid
-```
-
-**JavaScript (fetch)**
 ```javascript
 const response = await fetch("http://127.0.0.1:8188/api/auth/logout", {
   method: "POST",

@@ -29,6 +29,13 @@ User management enables multi-user ComfyUI installations where different users c
 }
 ```
 
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/users");
+const data = await response.json();
+console.log("Users:", data.users);
+```
+
 ### Create User
 
 **Endpoint:** `POST /users`
@@ -53,6 +60,21 @@ User management enables multi-user ComfyUI installations where different users c
 ```
 
 **Note:** Only available in multi-user mode.
+
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/users", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ username: "New User" }),
+});
+if (!response.ok) {
+  const { error } = await response.json();
+  throw new Error(error);
+}
+const newUserId = await response.json();
+console.log("Created user ID:", newUserId);
+```
 
 ### User Data Management
 
@@ -159,6 +181,21 @@ User data provides persistent storage for each user's custom files, such as save
 }
 ```
 
+**Example:**
+```javascript
+// Save a JSON file to user data
+await fetch("http://127.0.0.1:8188/userdata/my-workflow.json", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ nodes: [], links: [] }),
+});
+
+// Read the file back
+const response = await fetch("http://127.0.0.1:8188/userdata/my-workflow.json");
+const data = await response.json();
+console.log("Loaded workflow:", data);
+```
+
 #### Delete User File
 
 **Endpoint:** `DELETE /userdata/{file}`
@@ -167,6 +204,11 @@ User data provides persistent storage for each user's custom files, such as save
 - `file`: File path to delete
 
 **Response:** `204 No Content`
+
+**Example:**
+```javascript
+await fetch("http://127.0.0.1:8188/userdata/my-workflow.json", { method: "DELETE" });
+```
 
 #### Move User File
 
@@ -207,6 +249,13 @@ Settings control ComfyUI's behavior and appearance. They're stored per-user (in 
 }
 ```
 
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/settings");
+const settings = await response.json();
+console.log("All settings:", settings);
+```
+
 ### Get Specific Setting
 
 **Endpoint:** `GET /settings/{id}`
@@ -219,6 +268,13 @@ Settings control ComfyUI's behavior and appearance. They're stored per-user (in 
 {
   "value": "setting value"
 }
+```
+
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/settings/Comfy.ColorPalette");
+const value = await response.json();
+console.log("Color palette setting:", value);
 ```
 
 ### Save All Settings
@@ -235,6 +291,15 @@ Settings control ComfyUI's behavior and appearance. They're stored per-user (in 
 
 **Response:** `200 OK`
 
+**Example:**
+```javascript
+await fetch("http://127.0.0.1:8188/settings", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ "Comfy.ColorPalette": "dark", "Comfy.UseNewMenu": true }),
+});
+```
+
 ### Save Specific Setting
 
 **Endpoint:** `POST /settings/{id}`
@@ -250,6 +315,15 @@ Settings control ComfyUI's behavior and appearance. They're stored per-user (in 
 ```
 
 **Response:** `200 OK`
+
+**Example:**
+```javascript
+await fetch("http://127.0.0.1:8188/settings/Comfy.ColorPalette", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify("dark"),
+});
+```
 
 ---
 
@@ -297,6 +371,17 @@ System information endpoints provide visibility into ComfyUI's runtime environme
 - `embedded_python` indicates if using a bundled Python environment
 - Multiple devices may be listed if available (e.g., multiple GPUs)
 
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/system_stats");
+const { system, devices } = await response.json();
+console.log(`ComfyUI ${system.comfyui_version} on ${system.os}`);
+devices.forEach((d) => {
+  const vramFreeMB = Math.round(d.vram_free / 1024 / 1024);
+  console.log(`${d.name}: ${vramFreeMB} MB VRAM free`);
+});
+```
+
 ### Get Feature Flags
 
 **Endpoint:** `GET /features`
@@ -307,6 +392,13 @@ System information endpoints provide visibility into ComfyUI's runtime environme
   "feature_name": true,
   "another_feature": false
 }
+```
+
+**Example:**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/features");
+const features = await response.json();
+console.log("Enabled features:", Object.keys(features).filter((k) => features[k]));
 ```
 
 ---
