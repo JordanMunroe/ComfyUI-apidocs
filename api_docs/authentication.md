@@ -256,7 +256,183 @@ After enabling authentication, use the ComfyUI web interface to:
 
 ## Secrets in Workflow Nodes
 
-Regardless of authentication mode, never embed API keys or credentials directly inside node definitions submitted to the `/prompt` endpoint. ComfyUI automatically strips `auth_token_comfy_org` and `api_key_comfy_org` fields from queued prompts and stores them separately. Place any secrets in the `extra_data` field of the prompt request body, not inside node inputs.
+Workflow prompts submitted to `POST /prompt` are stored in the server's queue and then written to execution history, both of which are readable by other clients (or other users in multi-user mode). Any credentials placed directly inside node inputs are therefore exposed through `GET /queue` and `GET /history`. ComfyUI provides a safe alternative via the `extra_data` field and automatic key stripping.
+
+### What ComfyUI strips automatically
+
+When a prompt is enqueued, ComfyUI removes the following keys from the workflow's node inputs and stores them in a separate, non-public store instead:
+
+| Stripped key | Purpose |
+|---|---|
+| `auth_token_comfy_org` | Authentication token for Comfy.org API nodes |
+| `api_key_comfy_org` | API key for Comfy.org API nodes |
+
+These keys are never exposed through the queue or history endpoints, even if a client submits them inside a node definition.
+
+### Correct pattern — use `extra_data`
+
+Pass secrets inside the top-level `extra_data` object of the `/prompt` request body, not inside node inputs. ComfyUI nodes that need external credentials read them from this field.
+
+**Python**
+```python
+import requests
+import uuid
+
+workflow = { /* ... your node graph ... */ }
+
+response = requests.post(
+    "http://127.0.0.1:8188/prompt",
+    json={
+        "prompt": workflow,
+        "client_id": str(uuid.uuid4()),
+        "extra_data": {
+            "auth_token_comfy_org": "your-comfy-org-token",
+            "api_key_comfy_org": "your-api-key",
+        },
+    },
+)
+```
+
+**JavaScript (fetch)**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/prompt", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    prompt: workflow,
+    client_id: crypto.randomUUID(),
+    extra_data: {
+      auth_token_comfy_org: "your-comfy-org-token",
+      api_key_comfy_org: "your-api-key",
+    },
+  }),
+});
+```
+
+### What NOT to do
+
+Never embed credentials inside a node's `inputs` object:
+
+```json
+{
+  "prompt": {
+    "42": {
+      "class_type": "SomeAPINode",
+      "inputs": {
+        "api_key": "sk-secret-key-here"
+      }
+    }
+  }
+}
+```
+
+A payload like this stores `sk-secret-key-here` in the queue and history, making it readable by anyone who can call `GET /queue` or `GET /history`.
+
+---
+
+## Token Lifecycle
+
+This section applies to **Authenticated Multi-User Mode** only (`--enable-user-auth`). Single-user and multi-user (header) modes do not issue tokens.
+
+### Token validity
+
+Tokens issued by `POST /api/auth/login` are **session-scoped bearer tokens**. ComfyUI does not currently enforce a rolling expiry clock on tokens, so a token remains valid until one of these events occurs:
+
+- The server process is restarted (all in-memory session state is cleared).
+- The token is explicitly revoked via the logout endpoint (see below).
+- The user's account is deleted or disabled through the web UI.
+
+Because tokens are long-lived by default, treat them with the same care as passwords: store them in environment variables or a secrets manager, never commit them to source control, and never log them.
+
+### Obtaining a new token (re-authentication)
+
+There is no dedicated token-refresh endpoint. When a token becomes invalid, call `POST /api/auth/login` again with valid credentials to obtain a fresh token.
+
+**Python — automatic re-authentication**
+```python
+import requests
+import uuid
+
+
+class ComfyClient:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+        self._authenticate()
+
+    def _authenticate(self):
+        response = self.session.post(
+            f"{self.base_url}/api/auth/login",
+            json={"username": self.username, "password": self.password},
+        )
+        response.raise_for_status()
+        token = response.json()["token"]
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
+
+    def get(self, path: str, **kwargs):
+        response = self.session.get(f"{self.base_url}{path}", **kwargs)
+        if response.status_code == 401:
+            self._authenticate()
+            response = self.session.get(f"{self.base_url}{path}", **kwargs)
+        response.raise_for_status()
+        return response
+
+    def post(self, path: str, **kwargs):
+        response = self.session.post(f"{self.base_url}{path}", **kwargs)
+        if response.status_code == 401:
+            self._authenticate()
+            response = self.session.post(f"{self.base_url}{path}", **kwargs)
+        response.raise_for_status()
+        return response
+
+
+client = ComfyClient("http://127.0.0.1:8188", "admin", "your_password")
+stats = client.get("/system_stats").json()
+```
+
+### Revoking a token (logout)
+
+To invalidate a token before a server restart, call the logout endpoint:
+
+**Endpoint:** `POST /api/auth/logout`
+
+**Python**
+```python
+import requests
+
+headers = {"Authorization": f"Bearer {token}"}
+response = requests.post("http://127.0.0.1:8188/api/auth/logout", headers=headers)
+# 204 No Content on success — the token is now invalid
+```
+
+**JavaScript (fetch)**
+```javascript
+const response = await fetch("http://127.0.0.1:8188/api/auth/logout", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+});
+// 204 No Content on success
+```
+
+After logout, any subsequent request that uses the revoked token receives `401 Unauthorized`. The client must log in again to obtain a new token.
+
+### What the server returns for invalid tokens
+
+| Situation | HTTP Status | Recommended action |
+|---|---|---|
+| No `Authorization` header | `401 Unauthorized` | Add the header with a valid token |
+| Malformed header (not `Bearer <token>`) | `401 Unauthorized` | Fix header format |
+| Token has been revoked or server restarted | `401 Unauthorized` | Re-authenticate via `POST /api/auth/login` |
+| Authenticated but insufficient permissions | `403 Forbidden` | Check user permissions in the web UI |
+
+### Best practices
+
+- **Rotate tokens on a schedule.** Even though tokens do not expire automatically, periodically logging out and re-authenticating limits the window of exposure if a token is compromised.
+- **One token per service.** Give each application or automation its own user account so tokens can be revoked independently.
+- **Use HTTPS in production.** Without TLS, bearer tokens travel in plaintext. Place ComfyUI behind a TLS-terminating reverse proxy (nginx, Caddy) when the server is reachable from untrusted networks.
+- **Environment variables over config files.** Store tokens as environment variables (`COMFY_TOKEN=...`) rather than hard-coding them in source code or configuration files.
 
 ---
 

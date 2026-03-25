@@ -16,6 +16,7 @@ Proper error handling is crucial for building robust ComfyUI integrations. Comfy
 | 200 | Success |
 | 204 | No Content (successful deletion) |
 | 400 | Bad Request (invalid parameters or validation error) |
+| 401 | Unauthorized (missing or invalid authentication token) |
 | 403 | Forbidden (security violation) |
 | 404 | Not Found (resource doesn't exist) |
 | 500 | Internal Server Error |
