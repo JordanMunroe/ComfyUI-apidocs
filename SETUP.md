@@ -488,9 +488,10 @@ sudo ufw allow 8188/tcp
 
 After configuration:
 
-1. **[Read the Quick Start Guide](QUICKSTART.md)** - Run your first workflow via API
-2. **[Explore API Documentation](api_docs/API.md)** - Learn all endpoints
-3. **[Try Examples](api_docs/examples/README.md)** - Working code samples
+1. **[Read the Authentication Guide](api_docs/authentication.md)** - Detailed guide for all authentication modes
+2. **[Read the Quick Start Guide](QUICKSTART.md)** - Run your first workflow via API
+3. **[Explore API Documentation](api_docs/API.md)** - Learn all endpoints
+4. **[Try Examples](api_docs/examples/README.md)** - Working code samples
 
 ---
 

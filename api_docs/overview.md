@@ -41,17 +41,27 @@ The API implements cache control middleware to manage resource caching:
 
 ## Authentication
 
+ComfyUI supports three authentication modes. For a complete guide with setup steps and request examples for each mode, see the **[Authentication Guide](./authentication.md)**.
+
+### Single-User Mode (Default)
+
+No authentication required. All requests are accepted from any reachable client.
+
 ### Multi-User Mode
 
-When ComfyUI is running in multi-user mode (`--multi-user` flag), include the user ID in request headers:
+When ComfyUI is started with the `--multi-user` flag, include the user ID in request headers to isolate each user's queue, history, and settings:
 
 ```http
 comfy-user: <user_id>
 ```
 
-### Single-User Mode
+### Authenticated Multi-User Mode
 
-No authentication required in single-user mode (default).
+When ComfyUI is started with `--enable-user-auth`, clients must log in at `POST /api/auth/login` to obtain a token and then include it as a Bearer credential:
+
+```http
+Authorization: Bearer <token>
+```
 
 ### API Nodes
 
