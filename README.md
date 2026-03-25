@@ -33,6 +33,9 @@ Comprehensive documentation of all endpoints, WebSocket formats.
 - ✅ Error handling and status codes
 - ✅ Best practices and patterns
 
+### 🔐 [Authentication Guide](api_docs/authentication.md)
+Step-by-step guide for all three authentication modes: single-user, multi-user, and authenticated multi-user with token-based requests.
+
 ### 💻 [Code Examples](api_docs/examples/README.md)
 Five detailed examples:
 
