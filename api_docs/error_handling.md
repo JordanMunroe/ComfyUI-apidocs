@@ -55,3 +55,36 @@ Proper error handling is crucial for building robust ComfyUI integrations. Comfy
 - `no_prompt`: No prompt provided in request
 - `duplicate_username`: Username already exists (user management)
 - `invalid_directory_type`: Invalid directory type specified
+
+## Error Handling Example
+
+```javascript
+async function queuePrompt(workflow) {
+  const response = await fetch("http://127.0.0.1:8188/prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: workflow, client_id: crypto.randomUUID() }),
+  });
+
+  if (response.status === 400) {
+    const body = await response.json();
+    // Report per-node validation errors
+    if (body.node_errors && Object.keys(body.node_errors).length > 0) {
+      for (const [nodeId, nodeErr] of Object.entries(body.node_errors)) {
+        for (const err of nodeErr.errors) {
+          console.error(`Node ${nodeId} – ${err.type}: ${err.message}`);
+        }
+      }
+    } else {
+      console.error(`Prompt error: ${body.error?.message}`);
+    }
+    throw new Error("Workflow validation failed");
+  }
+
+  if (response.status === 401) throw new Error("Unauthorized – check your credentials");
+  if (response.status === 403) throw new Error("Forbidden – security violation");
+  if (!response.ok) throw new Error(`Unexpected error: HTTP ${response.status}`);
+
+  return await response.json(); // { prompt_id, number, node_errors }
+}
+```
