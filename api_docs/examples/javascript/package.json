@@ -1,11 +1,11 @@
 {
   "name": "comfyui-minimal-example",
-  "version": "1.0.0",
-  "description": "Minimal ComfyUI API example for Node.js",
+  "version": "2.0.0",
+  "description": "Minimal ComfyUI API example for Node.js — OOP, multi-file",
   "type": "module",
-  "main": "minimal-example.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node minimal-example.js"
+    "start": "node index.js"
   },
   "engines": {
     "node": ">=18.0.0"

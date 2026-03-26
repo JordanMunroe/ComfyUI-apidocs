@@ -8,17 +8,35 @@ This directory contains practical code examples for integrating with the ComfyUI
 
 ### [Minimal API Example](./minimal-api-example.md)
 
-The recommended starting point. A complete, single-file implementation in both **JavaScript** and **C#** that covers:
+The recommended starting point. A complete OOP, multi-file implementation in both **JavaScript** and **C#** that covers:
 
 - Single-user and multi-user authentication modes
 - Checking server status
 - Building and queuing a text-to-image workflow
-- Receiving real-time progress updates and preview images via WebSocket
+- Receiving real-time progress updates and binary preview images via WebSocket
 - Downloading the final generated image
 
-> **Runnable files:**
-> - [`javascript/minimal-example.js`](./javascript/minimal-example.js)
-> - [`csharp/MinimalExample.cs`](./csharp/MinimalExample.cs)
+**JavaScript** (`npm install && npm start`):
+
+| File | Class | Responsibility |
+|------|-------|---------------|
+| [`javascript/ComfyConfig.js`](./javascript/ComfyConfig.js) | `ComfyConfig` | Shared configuration |
+| [`javascript/WorkflowBuilder.js`](./javascript/WorkflowBuilder.js) | `WorkflowBuilder` | Workflow graph builder |
+| [`javascript/ComfyClient.js`](./javascript/ComfyClient.js) | `ComfyClient` | HTTP API client |
+| [`javascript/WebSocketMonitor.js`](./javascript/WebSocketMonitor.js) | `WebSocketMonitor` | WebSocket monitor |
+| [`javascript/index.js`](./javascript/index.js) | — | Entry point |
+
+**C#** (`dotnet run`):
+
+| File | Type | Responsibility |
+|------|------|---------------|
+| [`csharp/ComfyConfig.cs`](./csharp/ComfyConfig.cs) | `class ComfyConfig` | Shared configuration |
+| [`csharp/WorkflowBuilder.cs`](./csharp/WorkflowBuilder.cs) | `class WorkflowBuilder` | Workflow graph builder |
+| [`csharp/ComfyClient.cs`](./csharp/ComfyClient.cs) | `class ComfyClient` | HTTP API client |
+| [`csharp/WebSocketMonitor.cs`](./csharp/WebSocketMonitor.cs) | `class WebSocketMonitor` | WebSocket monitor |
+| [`csharp/PreviewImage.cs`](./csharp/PreviewImage.cs) | `record PreviewImage` | Binary preview model |
+| [`csharp/ImageDescriptor.cs`](./csharp/ImageDescriptor.cs) | `record ImageDescriptor` | Image output model |
+| [`csharp/Program.cs`](./csharp/Program.cs) | `class Program` | Entry point |
 
 ---
 

@@ -4,8 +4,8 @@
     <!-- Target .NET 8 (LTS). Change to net9.0 if you have .NET 9 installed. -->
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <!-- ImplicitUsings is disabled so each file's dependencies are explicit -->
     <ImplicitUsings>disable</ImplicitUsings>
-    <!-- Allow top-level statements used in MinimalExample.cs -->
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <OutputType>Exe</OutputType>
     <AssemblyName>ComfyMinimalExample</AssemblyName>
