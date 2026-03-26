@@ -38,8 +38,58 @@ ws.on('message', (payload) => {
 | Type | When | Payload |
 |------|------|---------|
 | `status` | Immediately after connecting. Sent again whenever queue state changes. | `{ "status": { "queue_remaining": <int> }, "sid": "<session-id>" }` |
-| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }` **as the first message after connecting**. | Server capabilities, e.g. `{ "supports_preview_metadata": true, "max_upload_size": <bytes>, "extension": { "manager": { "supports_v4": true }}}` |
+| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }` **as the first message after connecting**. | Server capabilities (see Feature Flags section below). |
 | Client request | **Must be the first message sent** after connecting to advertise your capabilities. | `{ "type": "feature_flags", "data": { "supports_preview_metadata": true } }` |
+
+## Feature Flags
+
+Feature flags are exchanged during the WebSocket handshake to negotiate protocol capabilities between the client and server. The client sends its supported features, and the server responds with its own capabilities.
+
+### Client Feature Flags
+
+Send these as the **first message** after the WebSocket connection opens:
+
+```json
+{
+  "type": "feature_flags",
+  "data": {
+    "supports_preview_metadata": true
+  }
+}
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `supports_preview_metadata` | `boolean` | Opt-in to receive `PREVIEW_IMAGE_WITH_METADATA` (binary event type `4`) frames that include node IDs, prompt IDs, and display metadata alongside the preview image. If not sent or `false`, the server sends the legacy `PREVIEW_IMAGE` (type `1`) frames instead. |
+
+### Server Feature Flags
+
+The server responds with a `feature_flags` message containing:
+
+```json
+{
+  "type": "feature_flags",
+  "data": {
+    "supports_preview_metadata": true,
+    "max_upload_size": 104857600,
+    "extension": {
+      "manager": {
+        "supports_v4": true
+      }
+    },
+    "node_replacements": true,
+    "assets": false
+  }
+}
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `supports_preview_metadata` | `boolean` | `true` | Server supports sending preview images with node/prompt metadata (binary event type `4`). |
+| `max_upload_size` | `number` | `104857600` (100 MB × 1024²) | Maximum allowed upload size in **bytes** for `/upload/image`. Set via the `--max-upload-size <MB>` CLI argument (value in MB is multiplied by 1,048,576 to produce bytes). |
+| `extension.manager.supports_v4` | `boolean` | `true` | ComfyUI-Manager protocol version 4 is supported. |
+| `node_replacements` | `boolean` | `true` | Server supports node replacement rules. |
+| `assets` | `boolean` | `false` | The assets system is enabled (requires `--enable-assets` CLI flag). |
 
 ## Execution Lifecycle Messages
 

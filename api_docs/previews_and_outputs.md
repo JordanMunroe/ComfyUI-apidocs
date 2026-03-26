@@ -22,7 +22,7 @@ This guide shows how to collect images from ComfyUI while a workflow is running 
    - `2 (UNENCODED_PREVIEW_IMAGE)`: rarely used raw previews; payload is a pickled tuple. Skip unless you control the server.
    - `4 (PREVIEW_IMAGE_WITH_METADATA)`: modern previews. Payload layout:
      1. 4-byte big-endian metadata length.
-     2. UTF-8 JSON metadata (includes `prompt_id`, `node_id`, `display_node_id`, `parent_node_id`, and `image_type`).
+     2. UTF-8 JSON metadata (includes `prompt_id`, `node_id`, `display_node_id`, `parent_node_id`, `real_node_id`, and `image_type`).
      3. Encoded JPEG or PNG bytes.
 
 ### Node.js listener example

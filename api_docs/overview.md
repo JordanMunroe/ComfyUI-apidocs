@@ -33,7 +33,7 @@ The server automatically supports gzip compression for JSON and text responses w
 ### Caching
 
 The API implements cache control middleware to manage resource caching:
-- Frontend files (index.html) are served with `no-cache` headers
+- Frontend files (index.html) are served with `no-store, must-revalidate` headers
 - Static resources may have appropriate cache headers set
 - API responses are typically not cached
 
@@ -49,7 +49,7 @@ No authentication required. All requests are accepted from any reachable client.
 
 ### Multi-User Mode
 
-When ComfyUI is started with the `--multi-user` flag, include the user ID in request headers to isolate each user's queue, history, and settings:
+When ComfyUI is started with the `--multi-user` flag, include the user ID in request headers to isolate each user's settings and user data files:
 
 ```http
 comfy-user: <user_id>
@@ -257,12 +257,12 @@ Enhanced preview that includes contextual metadata along with the image.
 **Metadata Example:**
 ```json
 {
-  "image_type": "image/png",
-  "prompt_id": "550e8400-e29b-41d4-a716-446655440000",
+  "image_type": "image/jpeg",
   "node_id": "3",
-  "step": 15,
-  "total_steps": 20,
-  "seed": 42
+  "prompt_id": "550e8400-e29b-41d4-a716-446655440000",
+  "display_node_id": "3",
+  "parent_node_id": null,
+  "real_node_id": "3"
 }
 ```
 
