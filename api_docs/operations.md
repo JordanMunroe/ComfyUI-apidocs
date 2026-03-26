@@ -91,15 +91,16 @@ User data provides persistent storage for each user's custom files, such as save
 **Endpoint:** `GET /userdata`
 
 **Query Parameters:**
-- `dir` (optional): Subdirectory to list (default: root)
+- `dir` (required): Subdirectory to list
 - `recurse` (optional): "true" to recurse subdirectories
 - `full_info` (optional): "true" to include file metadata
+- `split` (optional): "true" to split each relative path into components (only applies when `full_info` is false)
 
 **Response (basic):**
 ```json
 [
   "file1.json",
-  "folder1/"
+  "subfolder/file2.json"
 ]
 ```
 
@@ -115,38 +116,34 @@ User data provides persistent storage for each user's custom files, such as save
 ]
 ```
 
+**Note:** Returns 400 if `dir` is not provided, 403 if the path is not allowed, 404 if the directory does not exist.
+
 #### V2: List User Files (Enhanced)
 
 **Endpoint:** `GET /v2/userdata`
 
 **Query Parameters:**
-- `dir` (optional): Subdirectory to list
-- `recurse` (optional): "true" to recurse
-- `split` (optional): "true" to split folders and files
-- `sort_by` (optional): "name", "modified", "created", "size", "type"
-- `sort_order` (optional): "asc" or "desc" (default: "asc")
+- `path` (optional): Relative path within the user's data directory to list (default: root)
 
-**Response (with split):**
+**Response:**
 ```json
-{
-  "folders": [
-    {
-      "path": "folder1",
-      "size": 0,
-      "modified": 1701234567.89,
-      "created": 1701234560.00
-    }
-  ],
-  "files": [
-    {
-      "path": "file1.json",
-      "size": 1024,
-      "modified": 1701234567.89,
-      "created": 1701234560.00
-    }
-  ]
-}
+[
+  {
+    "name": "folder1",
+    "path": "folder1",
+    "type": "directory"
+  },
+  {
+    "name": "file1.json",
+    "path": "file1.json",
+    "type": "file",
+    "size": 1024,
+    "modified": 1701234567.89
+  }
+]
 ```
+
+**Note:** Results are sorted alphabetically, with directories listed before files. Returns 400 if path is invalid, 403 if the user is invalid, 404 if the requested subdirectory does not exist.
 
 #### Get User File
 
@@ -161,25 +158,32 @@ User data provides persistent storage for each user's custom files, such as save
 
 **Endpoint:** `POST /userdata/{file}`
 
-**Content-Type:** `application/json` or `multipart/form-data`
+**Query Parameters:**
+- `overwrite` (optional): If "false", prevents overwriting existing files (default: "true")
+- `full_info` (optional): If "true", returns detailed file information; otherwise returns the relative file path string (default: "false")
 
-**JSON Request:**
+**Request Body:** Raw file content (any content type)
+
+**Response (default — relative path string):**
+```json
+"my-workflow.json"
+```
+
+**Response (with full_info=true):**
 ```json
 {
-  "any": "json data"
+  "path": "my-workflow.json",
+  "size": 1024,
+  "modified": 1701234567.89,
+  "created": 1701234560.00
 }
 ```
 
-**Multipart Request:**
-- Form field `file`: File to upload
-- `overwrite` (optional): "true" to overwrite
-
-**Response:**
-```json
-{
-  "status": "success"
-}
-```
+**Status codes:**
+- `200` – File saved
+- `400` – File parameter missing or invalid filename
+- `403` – Path not allowed
+- `409` – File already exists and `overwrite=false`
 
 **Example:**
 ```javascript
@@ -218,12 +222,31 @@ await fetch("http://127.0.0.1:8188/userdata/my-workflow.json", { method: "DELETE
 - `file`: Source file path
 - `dest`: Destination file path
 
-**Response:**
+**Query Parameters:**
+- `overwrite` (optional): If "false", prevents overwriting the destination (default: "true")
+- `full_info` (optional): If "true", returns detailed file information; otherwise returns the relative destination path string (default: "false")
+
+**Response (default — relative path string):**
+```json
+"new-name.json"
+```
+
+**Response (with full_info=true):**
 ```json
 {
-  "status": "success"
+  "path": "new-name.json",
+  "size": 1024,
+  "modified": 1701234567.89,
+  "created": 1701234560.00
 }
 ```
+
+**Status codes:**
+- `200` – File moved
+- `400` – File or dest parameter missing
+- `403` – Path not allowed
+- `404` – Source file does not exist
+- `409` – Destination already exists and `overwrite=false`
 
 ---
 
@@ -263,11 +286,10 @@ console.log("All settings:", settings);
 **Parameters:**
 - `id`: Setting identifier
 
-**Response:**
+**Response:** The raw setting value (or `null` if not found). The value is returned directly, not wrapped in an object.
+
 ```json
-{
-  "value": "setting value"
-}
+"dark"
 ```
 
 **Example:**
@@ -307,11 +329,10 @@ await fetch("http://127.0.0.1:8188/settings", {
 **Parameters:**
 - `id`: Setting identifier
 
-**Request Body:**
+**Request Body:** The raw setting value to store (any JSON type — string, number, boolean, object, or array).
+
 ```json
-{
-  "value": "new setting value"
-}
+"dark"
 ```
 
 **Response:** `200 OK`
@@ -509,7 +530,7 @@ Internal routes are designed specifically for the ComfyUI frontend and internal 
 
 **Endpoint:** `GET /internal/logs`
 
-**Response:** Plain text log entries
+**Response:** A JSON-encoded string containing all log entries concatenated (timestamp + " - " + message for each entry).
 
 ### Get Raw Logs
 

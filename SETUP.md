@@ -147,11 +147,11 @@ python main.py --multi-user
 
 **What it does**:
 1. **Separates user data** - Each user ID gets their own:
-   - Queue (executions run independently)
-   - History (isolated generation history)
    - Settings and preferences
-2. **No authentication** - Users identify themselves via `comfy-user` header
-3. **Simple isolation** - Perfect for trusted environments where you need separation without password complexity
+   - User data files (stored in the `userdata/` directory per user)
+2. **Shared resources** - The queue, history, and model execution are **shared** across all users
+3. **No authentication** - Users identify themselves via `comfy-user` header
+4. **Simple isolation** - Perfect for trusted environments where you need per-user settings without password complexity
 
 **API usage with multi-user**:
 
@@ -167,14 +167,14 @@ headers = {
     'comfy-user': user_id
 }
 
-# All API calls with this header will be isolated to this user
+# Settings and userdata requests will be scoped to this user
 response = requests.post(
     'http://127.0.0.1:8188/prompt',
     json={'prompt': workflow, 'client_id': str(uuid.uuid4())},
     headers=headers
 )
 
-# Check this user's queue
+# Note: queue and history are shared across all users
 response = requests.get(
     'http://127.0.0.1:8188/queue',
     headers=headers
@@ -182,9 +182,9 @@ response = requests.get(
 ```
 
 **When to use**:
-- **Multiple services/projects**: Different applications using same ComfyUI without interfering
-- **Development**: Separate testing from production workflows
-- **Simple isolation**: Need user separation without authentication overhead
+- **Multiple services/projects**: Different applications using same ComfyUI that need separate settings or user data files
+- **Development**: Separate per-user settings between team members
+- **Simple isolation**: Need per-user settings/data without authentication overhead
 - **Trusted environment**: Internal network where security isn't a primary concern
 
 **When NOT to use**:

@@ -64,7 +64,7 @@ API nodes can be disabled with the `--disable-api-nodes` command-line flag. When
 ### CORS (Cross-Origin Resource Sharing)
 
 ComfyUI supports CORS configuration through command-line arguments:
-- `--enable-cors-header <origin>`: Enable CORS with specified origin (e.g., "https://example.com" or "*")
+- `--enable-cors-header [origin]`: Enable CORS with an optional origin (e.g., "https://example.com"); defaults to `*` (allow all) when no origin is specified
 - CORS headers are automatically added to all responses when enabled
 
 ### Security Options

@@ -5,11 +5,11 @@ This guide shows how to collect images from ComfyUI while a workflow is running 
 ## Real-Time Previews (WebSockets)
 
 1. **Connect with a stable client ID** – Generate a UUID and open `ws://<host>:<port>/ws?clientId=<uuid>`. The same ID scopes events and lets you reconnect without missing progress updates.
-2. **Negotiate feature flags (optional but recommended)** – Immediately send:
+2. **Negotiate feature flags (optional but recommended)** – Immediately send **as your first message**:
    ```json
    {"type":"feature_flags","data":{"supports_preview_metadata":true}}
    ```
-   The server responds with its own feature list. Advertising `supports_preview_metadata` unlocks preview frames that include node IDs, prompt IDs, and display metadata. If you skip the negotiation you still receive previews, but without metadata.
+   The server only processes feature flags when they arrive as the very first message in the session. The server responds with its own feature list. Advertising `supports_preview_metadata` unlocks preview frames that include node IDs, prompt IDs, and display metadata. If you skip the negotiation you still receive previews, but without metadata.
 3. **Listen for JSON events** – Every text frame is a JSON envelope with `type` and `data`. Common events:
    - `status`: queue depth and your `sid` (session ID).
    - `execution_start`: your prompt began executing.

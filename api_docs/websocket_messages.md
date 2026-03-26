@@ -6,7 +6,7 @@ This page documents every message type emitted by the ComfyUI WebSocket server, 
 
 1. **Generate a client ID** – Use a UUID or other unique string; the server uses it to route events. If you omit `clientId`, ComfyUI creates one and returns it in the first `status` message, but reconnects are easier when you control the value.
 2. **Open the socket** – Connect to `ws://<host>:<port>/ws?clientId=<your-id>` (or `wss://` when TLS is enabled). Keep the socket open across prompts to reuse the same session.
-3. **Advertise capabilities** – Optionally send a feature flag message right after `open` to let the server know which protocol extensions you support (e.g., preview metadata).
+3. **Advertise capabilities** – Optionally send a feature flag message **as your very first message** right after `open` to let the server know which protocol extensions you support (e.g., preview metadata). The server only processes feature flags if they arrive as the first message in the session.
 4. **Queue prompts with the same `client_id`** – When you call `POST /prompt`, pass the socket’s client ID so execution events route back to this connection.
 
 ### Minimal JavaScript example
@@ -38,8 +38,8 @@ ws.on('message', (payload) => {
 | Type | When | Payload |
 |------|------|---------|
 | `status` | Immediately after connecting. Sent again whenever queue state changes. | `{ "status": { "queue_remaining": <int> }, "sid": "<session-id>" }` |
-| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }`. | Server capabilities, e.g. `{ "supports_preview_metadata": true, "max_upload_size": <bytes>, "extension": { "manager": { "supports_v4": true }}}` |
-| Client request | First message you should send to advertise your capabilities. | `{ "type": "feature_flags", "data": { "supports_preview_metadata": true } }` |
+| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }` **as the first message after connecting**. | Server capabilities, e.g. `{ "supports_preview_metadata": true, "max_upload_size": <bytes>, "extension": { "manager": { "supports_v4": true }}}` |
+| Client request | **Must be the first message sent** after connecting to advertise your capabilities. | `{ "type": "feature_flags", "data": { "supports_preview_metadata": true } }` |
 
 ## Execution Lifecycle Messages
 

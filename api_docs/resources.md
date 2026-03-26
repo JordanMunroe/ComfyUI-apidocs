@@ -97,10 +97,10 @@ console.log("Available checkpoints:", checkpoints);
 [
   {
     "name": "model.safetensors",
-    "path": "subfolder/model.safetensors",
-    "folder_index": 0,
+    "pathIndex": 0,
     "size": 2147483648,
-    "modified": 1701234567.89
+    "modified": 1701234567.89,
+    "created": 1701234560.00
   }
 ]
 ```
