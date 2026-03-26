@@ -41,7 +41,7 @@ The API implements cache control middleware to manage resource caching:
 
 ## Authentication
 
-ComfyUI supports three authentication modes. For a complete guide with setup steps and request examples for each mode, see the **[Authentication Guide](./authentication.md)**.
+ComfyUI supports two authentication modes. For a complete guide with setup steps and request examples for each mode, see the **[Authentication Guide](./authentication.md)**.
 
 ### Single-User Mode (Default)
 
@@ -55,13 +55,7 @@ When ComfyUI is started with the `--multi-user` flag, include the user ID in req
 comfy-user: <user_id>
 ```
 
-### Authenticated Multi-User Mode
-
-When ComfyUI is started with `--enable-user-auth`, clients must log in at `POST /api/auth/login` to obtain a token and then include it as a Bearer credential:
-
-```http
-Authorization: Bearer <token>
-```
+There is no password or credential verification in either mode. To restrict access to the server, place it behind a reverse proxy that handles authentication.
 
 ### API Nodes
 
@@ -76,8 +70,7 @@ ComfyUI supports CORS configuration through command-line arguments:
 ### Security Options
 
 - `--listen [address]`: Listen on specified network address (default: 127.0.0.1)
-- `--enable-origin-check-only`: Only allow requests from same origin
-- External access restrictions can be configured via middleware
+- External access restrictions can be configured via middleware or a reverse proxy
 
 ### ComfyUI Manager
 
