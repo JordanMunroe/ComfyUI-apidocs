@@ -38,7 +38,7 @@ python main.py
 python main.py --listen 0.0.0.0
 
 # Combine multiple options
-python main.py --listen 0.0.0.0 --port 8080 --enable-cors-header --enable-user-auth
+python main.py --listen 0.0.0.0 --port 8080 --enable-cors-header --multi-user
 ```
 
 ### Detailed Arguments
@@ -66,7 +66,7 @@ python main.py --listen 192.168.1.100
 - **All interfaces** (`0.0.0.0`): API needs to be accessible from other machines/containers/network
 - **Specific IP**: Multiple network interfaces, bind to specific one
 
-**Security Note**: Using `0.0.0.0` exposes your API to your entire network. Consider using `--enable-user-auth` for security.
+**Security Note**: Using `0.0.0.0` exposes your API to your entire network. Consider placing ComfyUI behind a reverse proxy that handles authentication, or use `--multi-user` to enable per-user storage isolation.
 
 ---
 
@@ -188,120 +188,10 @@ response = requests.get(
 - **Trusted environment**: Internal network where security isn't a primary concern
 
 **When NOT to use**:
-- **Public access**: Anyone can claim any user ID (no security)
-- **Untrusted users**: Use `--enable-user-auth` instead for password protection
+- **Public access**: Anyone can claim any user ID (no credential verification)
+- **Untrusted users**: Use a reverse proxy with authentication for password protection
 
----
-
-#### `--enable-user-auth`
-
-**Purpose**: Enable user authentication and multi-user mode **with password protection**.
-
-**Default**: Disabled (no authentication required)
-
-**Usage**:
-```bash
-python main.py --enable-user-auth
-```
-
-**What it does**:
-1. **Creates user system** - Separate user accounts with passwords
-2. **Isolates workflows** - Each user has their own:
-   - Queue (executions run independently)
-   - History (can't see other users' generations)
-   - Settings and preferences
-3. **Requires login** - API requests must include authentication token
-4. **Admin interface** - User management via web UI
-5. **Automatically enables** `--multi-user` with security
-
-**First-time setup**:
-```bash
-# Start with auth enabled
-python main.py --enable-user-auth
-
-# On first launch, default admin account is created:
-# Username: admin
-# Password: admin
-
-# IMPORTANT: Change the default password immediately!
-```
-
-**API usage with authentication**:
-
-1. **Login to get token**:
-```python
-import requests
-
-# Login
-response = requests.post('http://127.0.0.1:8188/api/auth/login', json={
-    'username': 'admin',
-    'password': 'your_password'
-})
-
-token = response.json()['token']
-```
-
-2. **Use token in API requests**:
-```python
-# Include token in headers
-headers = {
-    'Authorization': f'Bearer {token}'
-}
-
-# All API calls need the token
-response = requests.post(
-    'http://127.0.0.1:8188/prompt',
-    json={'prompt': workflow},
-    headers=headers
-)
-```
-
-**Managing users**:
-
-After enabling auth, access the web UI to:
-- Create new user accounts
-- Set permissions
-- Reset passwords
-- View user activity
-
-**When to use**:
-- **Multiple users**: Different people/services using same ComfyUI instance
-- **Production deployment**: Securing your API from unauthorized access
-- **Shared servers**: Running ComfyUI on a shared machine/network
-- **Isolation needed**: Different projects/clients shouldn't interfere with each other
-
-**When NOT to use**:
-- Personal use on local machine (adds complexity)
-- Already behind authentication layer (reverse proxy with auth)
-- Testing/development on isolated network (use `--multi-user` instead)
-
-**Comparison: `--multi-user` vs `--enable-user-auth`**:
-
-| Feature | `--multi-user` | `--enable-user-auth` |
-|---------|----------------|----------------------|
-| User isolation | ✅ Yes | ✅ Yes |
-| Password required | ❌ No | ✅ Yes |
-| Security | ⚠️ Trust-based | ✅ Authenticated |
-| Setup complexity | Simple | Requires user mgmt |
-| Best for | Internal/dev | Production/public |
-
-**Security considerations**:
-```bash
-# ✓ Safe: Local only, no auth needed
-python main.py --listen 127.0.0.1
-
-# ✓ Good: Multi-user on private network (no passwords)
-python main.py --listen 0.0.0.0 --multi-user
-
-# ✓ Good: Auth + limited network access
-python main.py --listen 192.168.1.100 --enable-user-auth
-
-# ✓ Best: Auth for public-facing API
-python main.py --listen 0.0.0.0 --enable-user-auth
-
-# ⚠ Warning: No isolation, exposed to network
-python main.py --listen 0.0.0.0
-```
+> **Note**: ComfyUI does not have a built-in password or bearer-token authentication system. `--multi-user` provides user isolation only — it does not prevent a client from claiming any user ID. If you need to restrict who can access the server, place ComfyUI behind a reverse proxy that handles authentication.
 
 ---
 
@@ -319,28 +209,16 @@ python main.py
 python main.py --listen 0.0.0.0
 ```
 
-#### Multi-User (No Passwords)
+#### Multi-User (Isolated Queues/History per User)
 ```bash
-# Multiple users/services with simple isolation
+# Multiple users/services with per-user storage isolation
 python main.py --multi-user
-```
-
-#### Remote Access (Secured)
-```bash
-# With authentication for security
-python main.py --listen 0.0.0.0 --enable-user-auth
 ```
 
 #### Web Application Development
 ```bash
 # Enable CORS for browser-based apps
 python main.py --listen 0.0.0.0 --enable-cors-header
-```
-
-#### Production Deployment
-```bash
-# Full security setup
-python main.py --listen 0.0.0.0 --port 8080 --enable-cors-header --enable-user-auth
 ```
 
 #### Multiple Services (Same Instance)
@@ -355,8 +233,8 @@ python main.py --multi-user --listen 0.0.0.0
 
 #### Multiple Instances (Different Ports)
 ```bash
-# Instance 1: Main production
-python main.py --port 8188 --enable-user-auth
+# Instance 1: Main
+python main.py --port 8188
 
 # Instance 2: Testing
 python main.py --port 8189 --listen 127.0.0.1
