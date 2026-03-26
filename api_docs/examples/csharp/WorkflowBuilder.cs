@@ -6,52 +6,15 @@ using System.Collections.Generic;
 
 namespace ComfyMinimalExample;
 
-/// <summary>
-/// Constructs ComfyUI workflow graphs for common image generation tasks.
-///
-/// A workflow is a dictionary whose keys are node IDs and whose values
-/// describe each node's type (<c>class_type</c>) and named inputs.
-/// Outputs of one node are referenced in another node's inputs using the
-/// tuple <c>["node_id", output_index]</c>.
-///
-/// Each builder method returns a plain <see cref="object"/> that can be
-/// serialised directly by <see cref="System.Text.Json.JsonSerializer"/> and
-/// submitted to <see cref="ComfyClient.QueueWorkflowAsync"/>.
-/// </summary>
-/// <example>
-/// <code>
-/// var builder  = new WorkflowBuilder();
-/// var workflow = builder.BuildTxt2Img("a sunset over mountains");
-/// string promptId = await client.QueueWorkflowAsync(workflow);
-/// </code>
-/// </example>
+/// <summary>Builds ComfyUI workflow graphs.</summary>
 public class WorkflowBuilder
 {
     /// <summary>
-    /// Builds a minimal Stable Diffusion text-to-image workflow graph.
-    /// </summary>
-    /// <remarks>
-    /// Pipeline:
-    /// <list type="bullet">
-    ///   <item><description>"1" CheckpointLoaderSimple — loads model, CLIP encoder, and VAE</description></item>
-    ///   <item><description>"2" CLIPTextEncode         — encodes the positive text prompt</description></item>
-    ///   <item><description>"3" CLIPTextEncode         — encodes the negative text prompt</description></item>
-    ///   <item><description>"4" EmptyLatentImage       — creates a blank latent canvas</description></item>
-    ///   <item><description>"5" KSampler               — runs the diffusion sampling loop</description></item>
-    ///   <item><description>"6" VAEDecode              — converts the latent tensor to pixel space</description></item>
-    ///   <item><description>"7" SaveImage              — writes the final PNG to disk on the server</description></item>
-    /// </list>
+    /// Builds a minimal Stable Diffusion text-to-image workflow.
     ///
-    /// Node output reference format: <c>["node_id", output_index]</c>
-    /// <list type="table">
-    ///   <listheader><term>Node</term><description>Index → Type</description></listheader>
-    ///   <item><term>"1" CheckpointLoaderSimple</term><description>0 → MODEL, 1 → CLIP, 2 → VAE</description></item>
-    /// </list>
-    /// </remarks>
-    /// <param name="positivePrompt">Text describing what to generate.</param>
-    /// <param name="negativePrompt">Text describing what to avoid.</param>
-    /// <param name="checkpointName">Model filename inside ComfyUI's <c>models/</c> directory.</param>
-    /// <returns>A workflow graph object ready to pass to <see cref="ComfyClient.QueueWorkflowAsync"/>.</returns>
+    /// Pipeline: CheckpointLoader → CLIPTextEncode (×2) + EmptyLatentImage
+    ///           → KSampler → VAEDecode → SaveImage
+    /// </summary>
     public object BuildTxt2Img(
         string positivePrompt = "a beautiful sunset over mountains, golden hour, photorealistic",
         string negativePrompt = "blurry, low quality, watermark",
@@ -127,3 +90,4 @@ public class WorkflowBuilder
         };
     }
 }
+

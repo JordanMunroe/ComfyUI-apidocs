@@ -1,44 +1,19 @@
 /**
  * @file WorkflowBuilder.js
- * @description Builds ComfyUI workflow graphs for common use cases.
- *
- * A workflow is a JSON object whose keys are node IDs and whose values
- * describe each node's type (`class_type`) and inputs.  Node outputs are
- * referenced with the tuple `["node_id", output_index]`.
+ * @description Builds ComfyUI workflow graphs.
  */
 
-/**
- * Constructs ComfyUI workflow graphs.
- *
- * Each builder method returns a plain object that can be passed directly to
- * {@link ComfyClient#queueWorkflow} as the `workflow` argument.
- *
- * @example
- * const builder = new WorkflowBuilder();
- * const workflow = builder.buildTxt2Img('a sunset over mountains');
- */
+/** Constructs ComfyUI workflow graphs. */
 export class WorkflowBuilder {
   /**
-   * Builds a minimal Stable Diffusion text-to-image workflow graph.
+   * Builds a minimal Stable Diffusion text-to-image workflow.
    *
-   * The pipeline:
-   * ```
-   * CheckpointLoader ─► CLIPTextEncode (positive prompt)
-   *                  ─► CLIPTextEncode (negative prompt)
-   * EmptyLatentImage ─►
-   *                      KSampler ─► VAEDecode ─► SaveImage
-   * ```
+   * Pipeline: CheckpointLoader → CLIPTextEncode (×2) + EmptyLatentImage
+   *           → KSampler → VAEDecode → SaveImage
    *
-   * Node output reference format: `["node_id", output_index]`
-   * | Node | Index | Type |
-   * |------|-------|------|
-   * | "1" CheckpointLoaderSimple | 0 | MODEL |
-   * | "1" CheckpointLoaderSimple | 1 | CLIP  |
-   * | "1" CheckpointLoaderSimple | 2 | VAE   |
-   *
-   * @param {string} [positivePrompt] - Text describing what to generate.
-   * @param {string} [negativePrompt] - Text describing what to avoid.
-   * @param {string} [checkpointName] - Model filename in ComfyUI's models/ directory.
+   * @param {string} [positivePrompt]
+   * @param {string} [negativePrompt]
+   * @param {string} [checkpointName]
    * @returns {object} Workflow graph ready to submit to `POST /prompt`.
    */
   buildTxt2Img(
@@ -101,3 +76,4 @@ export class WorkflowBuilder {
     };
   }
 }
+
