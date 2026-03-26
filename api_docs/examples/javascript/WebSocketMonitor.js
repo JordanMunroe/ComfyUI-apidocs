@@ -96,11 +96,10 @@ export class WebSocketMonitor {
    * prompt finishes executing.
    *
    * Progress events are logged to the console as they arrive.  Preview images
-   * are saved to `outputDir` with sequential filenames (`preview_1.jpg`, …).
-   *
-   * The promise resolves with the map of node outputs once the `executing`
-   * event with `node: null` is received (signalling that all nodes are done).
-   * It rejects if the server reports an `execution_error` for this prompt.
+   * are saved to `outputDir` with sequential filenames (`preview_1.jpg`, …)
+   * **asynchronously** — the receive loop is never blocked by disk I/O.
+   * All in-flight writes are awaited before the returned promise resolves, so
+   * no preview is silently dropped.
    *
    * @param {string} promptId - The `prompt_id` returned by
    *   {@link ComfyClient#queueWorkflow}.
@@ -121,6 +120,11 @@ export class WebSocketMonitor {
     let previewCount = 0;
     const nodeOutputs = {};
 
+    // Track in-flight async disk writes so we can await them all before
+    // resolving. This guarantees every preview is flushed even if execution
+    // completes before the last file write finishes.
+    const pendingWrites = [];
+
     return new Promise((resolve, reject) => {
       ws.on('open', () => {
         console.log('  ✓ WebSocket connected — waiting for results …\n');
@@ -137,25 +141,40 @@ export class WebSocketMonitor {
         }
       });
 
-      ws.on('message', async (data, isBinary) => {
+      ws.on('message', (data, isBinary) => {
         try {
           if (isBinary) {
             // -------------------------------------------------------------------
-            // Binary frame: preview image (generated during sampling)
+            // Binary frame: preview image (generated during sampling).
+            //
+            // The disk write is fired asynchronously — the receive loop moves on
+            // immediately without waiting for I/O to complete.  The write
+            // promise is tracked in `pendingWrites` and awaited in bulk before
+            // the outer promise resolves.
             // The `ws` library always provides a Buffer for binary messages in
-            // Node.js, so we can use `data` directly without conversion.
+            // Node.js — alias it as `buffer` to make the binary intent clear.
             // -------------------------------------------------------------------
-            const preview = this.#decodePreviewImage(data);
+            const buffer = data;
+            const preview = this.#decodePreviewImage(buffer);
 
             if (preview) {
               previewCount++;
               const filename = `${this._outputDir}/preview_${previewCount}.${preview.extension}`;
-              await writeFile(filename, preview.imageBytes);
 
               const metaInfo = preview.metadata
                 ? ` (node: ${preview.metadata.node_id ?? 'unknown'})`
                 : '';
-              console.log(`  📷 Preview ${previewCount} saved → ${filename}${metaInfo}`);
+              console.log(`  📷 Preview ${previewCount} received → saving ${filename}${metaInfo}`);
+
+              // Fire-and-forget the write; track for later awaiting.
+              const writePromise = writeFile(filename, preview.imageBytes)
+                .then(() => {
+                  console.log(`  ✔ Preview ${previewCount} saved`);
+                })
+                .catch((err) => {
+                  console.error(`  ⚠ Failed to save preview ${filename}: ${err.message}`);
+                });
+              pendingWrites.push(writePromise);
             }
           } else {
             // -------------------------------------------------------------------
@@ -175,10 +194,12 @@ export class WebSocketMonitor {
                 if (prompt_id !== promptId) break;
 
                 if (node === null || node === undefined) {
-                  // null node means all nodes are done — close and resolve
+                  // null node means all nodes are done — flush pending writes then resolve
                   console.log('\n  ✅ Execution complete');
                   ws.close();
-                  resolve(nodeOutputs);
+                  // Await all in-flight preview saves before resolving so the caller
+                  // can be certain every preview file is on disk.
+                  Promise.allSettled(pendingWrites).then(() => resolve(nodeOutputs));
                 } else {
                   console.log(`  ⚙  Executing node ${node} …`);
                 }
@@ -206,7 +227,10 @@ export class WebSocketMonitor {
                 const { prompt_id, exception_message } = msg.data ?? {};
                 if (prompt_id !== promptId) break;
                 ws.close();
-                reject(new Error(`Execution error: ${exception_message}`));
+                // Still flush pending writes before rejecting so partial previews are saved
+                Promise.allSettled(pendingWrites).then(() =>
+                  reject(new Error(`Execution error: ${exception_message}`)),
+                );
                 break;
               }
 

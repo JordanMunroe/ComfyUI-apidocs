@@ -23,12 +23,18 @@ namespace ComfyMinimalExample;
 ///   <item><description>Binary frames: encoded preview images (Type 1 and Type 4)</description></item>
 /// </list>
 ///
-/// Preview images are saved to <see cref="OutputDir"/> as they arrive so you
-/// can watch generation progress in real time.
+/// When a preview frame arrives, <see cref="PreviewImageReceived"/> is raised
+/// immediately (synchronous notification) and the image bytes are written to
+/// <see cref="OutputDir"/> asynchronously so the receive loop is never blocked.
 /// </summary>
 /// <example>
 /// <code>
-/// var monitor     = new WebSocketMonitor(config);
+/// var monitor = new WebSocketMonitor(config);
+///
+/// // Subscribe before calling WaitForCompletionAsync
+/// monitor.PreviewImageReceived += (_, args) =>
+///     Console.WriteLine($"Preview #{args.Index} incoming → {args.SavePath}");
+///
 /// var nodeOutputs = await monitor.WaitForCompletionAsync(promptId);
 /// </code>
 /// </example>
@@ -46,6 +52,28 @@ public class WebSocketMonitor
     // Messages larger than this will throw an InvalidOperationException.
     // Increase BufferSize or switch to a MemoryStream if you need larger previews.
     private const int BufferSize = 4 * 1024 * 1024;
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Raised on the calling thread each time the server sends a binary preview
+    /// frame during workflow execution.
+    ///
+    /// The event fires synchronously before the image is written to disk.
+    /// Subscribers can inspect <see cref="PreviewReceivedEventArgs.ImageBytes"/>
+    /// immediately or wait for the file to appear at
+    /// <see cref="PreviewReceivedEventArgs.SavePath"/>.
+    ///
+    /// Subscribers must not perform long-running or blocking work inline;
+    /// use <c>Task.Run</c> if async processing is required.
+    /// </summary>
+    public event EventHandler<PreviewReceivedEventArgs>? PreviewImageReceived;
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
 
     /// <summary>
     /// Initialises a new <see cref="WebSocketMonitor"/>.
@@ -73,6 +101,55 @@ public class WebSocketMonitor
         ((uint)buffer[offset + 1] << 16) |
         ((uint)buffer[offset + 2] << 8)  |
         buffer[offset + 3];
+
+    /// <summary>
+    /// Receives a complete (possibly multi-frame) WebSocket message into
+    /// <paramref name="buffer"/> and returns the final
+    /// <see cref="WebSocketReceiveResult"/> with the total byte count.
+    ///
+    /// Continuation frames are accumulated sequentially until
+    /// <see cref="WebSocketReceiveResult.EndOfMessage"/> is <see langword="true"/>.
+    /// </summary>
+    /// <param name="ws">The open <see cref="ClientWebSocket"/>.</param>
+    /// <param name="buffer">Pre-allocated receive buffer.</param>
+    /// <param name="cancellationToken">Token to cancel the receive.</param>
+    /// <returns>
+    /// A <see cref="WebSocketReceiveResult"/> whose <c>Count</c> reflects the
+    /// total number of bytes written to <paramref name="buffer"/>.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the complete message size exceeds <see cref="BufferSize"/>.
+    /// </exception>
+    private static async Task<WebSocketReceiveResult> ReceiveFullMessageAsync(
+        ClientWebSocket ws,
+        byte[] buffer,
+        CancellationToken cancellationToken)
+    {
+        WebSocketReceiveResult result =
+            await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+
+        while (!result.EndOfMessage)
+        {
+            int offset = result.Count;
+            if (offset >= buffer.Length)
+            {
+                throw new InvalidOperationException(
+                    $"WebSocket message exceeds the {BufferSize / 1024 / 1024} MB receive " +
+                    "buffer. Increase BufferSize or use a MemoryStream for larger messages.");
+            }
+
+            var continuation = new ArraySegment<byte>(buffer, offset, buffer.Length - offset);
+            var next = await ws.ReceiveAsync(continuation, cancellationToken);
+            result = new WebSocketReceiveResult(
+                result.Count + next.Count,
+                next.MessageType,
+                next.EndOfMessage,
+                next.CloseStatus,
+                next.CloseStatusDescription);
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// Decodes a binary WebSocket message into a <see cref="PreviewImage"/>.
@@ -136,6 +213,31 @@ public class WebSocketMonitor
         return null; // Unknown binary event type — skip silently
     }
 
+    /// <summary>
+    /// Writes preview image bytes to disk asynchronously.
+    ///
+    /// This method is fire-and-forget from the receive loop — the returned
+    /// <see cref="Task"/> is tracked in <c>pendingSaves</c> and awaited in bulk
+    /// before <see cref="WaitForCompletionAsync"/> returns, so no preview is
+    /// silently dropped.
+    /// </summary>
+    /// <param name="imageBytes">Raw bytes to write.</param>
+    /// <param name="savePath">Destination file path.</param>
+    /// <param name="cancellationToken">Token to cancel the write.</param>
+    private static async Task SavePreviewAsync(
+        byte[] imageBytes, string savePath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await File.WriteAllBytesAsync(savePath, imageBytes, cancellationToken);
+            Console.WriteLine($"  📷 Preview saved → {savePath}");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"  ⚠ Failed to save preview {savePath}: {ex.Message}");
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
@@ -144,12 +246,14 @@ public class WebSocketMonitor
     /// Opens a WebSocket connection to ComfyUI and waits until the specified
     /// prompt finishes executing.
     ///
-    /// Progress events are logged to the console as they arrive.  Preview
-    /// images are saved to <see cref="OutputDir"/> with sequential filenames
-    /// (<c>preview_1.jpg</c>, <c>preview_2.jpg</c>, …).
+    /// As preview frames arrive, <see cref="PreviewImageReceived"/> is raised
+    /// immediately and each image is saved to <see cref="OutputDir"/>
+    /// asynchronously — the receive loop is never blocked by disk I/O.
     ///
     /// The method returns once the <c>executing</c> event with
-    /// <c>node: null</c> is received, signalling that all nodes are done.
+    /// <c>node: null</c> is received (all nodes done).  All pending disk writes
+    /// are awaited before returning so previews are guaranteed to be flushed.
+    ///
     /// It throws if the server reports an <c>execution_error</c> for this prompt.
     /// </summary>
     /// <param name="promptId">
@@ -186,36 +290,17 @@ public class WebSocketMonitor
         var buffer      = new byte[BufferSize];
         int previewCount = 0;
 
+        // Track all in-flight async disk writes so we can await them in bulk
+        // before returning. This guarantees every preview is flushed to disk.
+        var pendingSaves = new List<Task>();
+
         Directory.CreateDirectory(OutputDir);
 
         while (ws.State == WebSocketState.Open)
         {
-            // Receive the next message — may span multiple frames for large payloads
-            var segment = new ArraySegment<byte>(buffer);
-            WebSocketReceiveResult result = await ws.ReceiveAsync(segment, cancellationToken);
-
-            // Accumulate continuation frames into the same contiguous buffer.
-            // Guard against messages that exceed the fixed buffer size.
-            while (!result.EndOfMessage)
-            {
-                int offset = result.Count;
-                if (offset >= buffer.Length)
-                {
-                    throw new InvalidOperationException(
-                        $"WebSocket message exceeds the {BufferSize / 1024 / 1024} MB receive " +
-                        "buffer. Increase BufferSize or use a MemoryStream for larger messages.");
-                }
-
-                var continuation = new ArraySegment<byte>(buffer, offset, buffer.Length - offset);
-                var next = await ws.ReceiveAsync(continuation, cancellationToken);
-                result = new WebSocketReceiveResult(
-                    result.Count + next.Count,
-                    next.MessageType,
-                    next.EndOfMessage,
-                    next.CloseStatus,
-                    next.CloseStatusDescription);
-            }
-
+            // Receive the next complete message (accumulates continuation frames internally).
+            WebSocketReceiveResult result =
+                await ReceiveFullMessageAsync(ws, buffer, cancellationToken);
             int bytesReceived = result.Count;
 
             if (result.MessageType == WebSocketMessageType.Close)
@@ -228,23 +313,26 @@ public class WebSocketMonitor
             if (result.MessageType == WebSocketMessageType.Binary)
             {
                 // ------------------------------------------------------------------
-                // Binary frame: preview image generated during sampling
+                // Binary frame: preview image generated during sampling.
+                //
+                // 1. Decode the frame immediately (synchronous, zero-copy slice).
+                // 2. Raise PreviewImageReceived so subscribers are notified at once.
+                // 3. Start the disk write asynchronously and track it — the receive
+                //    loop continues without waiting for I/O to complete.
                 // ------------------------------------------------------------------
                 var preview = DecodePreviewImage(buffer, bytesReceived);
                 if (preview is not null)
                 {
                     previewCount++;
-                    string filename = Path.Combine(OutputDir, $"preview_{previewCount}.{preview.Extension}");
-                    await File.WriteAllBytesAsync(filename, preview.ImageBytes, cancellationToken);
+                    string savePath = Path.Combine(OutputDir, $"preview_{previewCount}.{preview.Extension}");
 
-                    string metaInfo = "";
-                    if (preview.Metadata.HasValue &&
-                        preview.Metadata.Value.TryGetProperty("node_id", out var nodeId))
-                    {
-                        metaInfo = $" (node: {nodeId.GetString()})";
-                    }
+                    // Raise the event synchronously — subscribers are notified before
+                    // the file exists on disk (SavePath documents this behaviour).
+                    var args = new PreviewReceivedEventArgs(previewCount, preview, savePath);
+                    PreviewImageReceived?.Invoke(this, args);
 
-                    Console.WriteLine($"  📷 Preview {previewCount} saved → {filename}{metaInfo}");
+                    // Fire-and-forget the save; track the Task so we can await it later.
+                    pendingSaves.Add(SavePreviewAsync(preview.ImageBytes, savePath, cancellationToken));
                 }
             }
             else if (result.MessageType == WebSocketMessageType.Text)
@@ -283,6 +371,9 @@ public class WebSocketMonitor
                             Console.WriteLine("\n  ✅ Execution complete");
                             await ws.CloseAsync(
                                 WebSocketCloseStatus.NormalClosure, "done", cancellationToken);
+
+                            // Flush all in-flight preview saves before returning.
+                            await Task.WhenAll(pendingSaves);
                             return nodeOutputs;
                         }
 
@@ -331,6 +422,9 @@ public class WebSocketMonitor
 
                         await ws.CloseAsync(
                             WebSocketCloseStatus.NormalClosure, "error", cancellationToken);
+
+                        // Still await pending saves so partially-written files are not lost
+                        await Task.WhenAll(pendingSaves);
                         throw new InvalidOperationException($"Execution error: {message}");
                     }
 
@@ -349,6 +443,9 @@ public class WebSocketMonitor
             }
         }
 
+        // Flush any pending saves if the loop exited via the Close message path
+        await Task.WhenAll(pendingSaves);
         return nodeOutputs;
     }
 }
+

@@ -62,6 +62,11 @@ internal class Program
         var builder = new WorkflowBuilder();
         var monitor = new WebSocketMonitor(config);
 
+        // Subscribe to the preview event before calling WaitForCompletionAsync.
+        // The event fires on the WebSocket receive thread as soon as each binary
+        // frame is decoded — before the image bytes have been written to disk.
+        monitor.PreviewImageReceived += OnPreviewImageReceived;
+
         try
         {
             // 1. Verify the server is reachable.
@@ -99,5 +104,27 @@ internal class Program
             Console.Error.WriteLine($"\n✗ Fatal error: {ex.Message}");
             Environment.Exit(1);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Event handlers
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Handles the <see cref="WebSocketMonitor.PreviewImageReceived"/> event.
+    ///
+    /// Called synchronously on the WebSocket receive thread each time the server
+    /// sends a binary preview frame.  The image bytes are available immediately
+    /// via <paramref name="args"/>; the file at <c>args.SavePath</c> is written
+    /// asynchronously in the background by <see cref="WebSocketMonitor"/>.
+    /// </summary>
+    private static void OnPreviewImageReceived(object? sender, PreviewReceivedEventArgs args)
+    {
+        string nodeInfo = args.Metadata.HasValue &&
+                          args.Metadata.Value.TryGetProperty("node_id", out var nid)
+            ? $" (node: {nid.GetString()})"
+            : "";
+
+        Console.WriteLine($"  📷 Preview #{args.Index} received{nodeInfo} — saving to {args.SavePath} …");
     }
 }
