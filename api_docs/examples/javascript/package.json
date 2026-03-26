@@ -1,0 +1,16 @@
+{
+  "name": "comfyui-minimal-example",
+  "version": "1.0.0",
+  "description": "Minimal ComfyUI API example for Node.js",
+  "type": "module",
+  "main": "minimal-example.js",
+  "scripts": {
+    "start": "node minimal-example.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

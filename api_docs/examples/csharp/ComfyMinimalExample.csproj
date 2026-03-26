@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Target .NET 8 (LTS). Change to net9.0 if you have .NET 9 installed. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Allow top-level statements used in MinimalExample.cs -->
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ComfyMinimalExample</AssemblyName>
+    <!-- Enable XML doc generation to validate /// comments -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- System.Net.Http.Json provides GetFromJsonAsync / PostAsJsonAsync -->
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
