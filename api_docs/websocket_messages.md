@@ -6,7 +6,7 @@ This page documents every message type emitted by the ComfyUI WebSocket server, 
 
 1. **Generate a client ID** – Use a UUID or other unique string; the server uses it to route events. If you omit `clientId`, ComfyUI creates one and returns it in the first `status` message, but reconnects are easier when you control the value.
 2. **Open the socket** – Connect to `ws://<host>:<port>/ws?clientId=<your-id>` (or `wss://` when TLS is enabled). Keep the socket open across prompts to reuse the same session.
-3. **Advertise capabilities** – Optionally send a feature flag message right after `open` to let the server know which protocol extensions you support (e.g., preview metadata).
+3. **Advertise capabilities** – Optionally send a feature flag message **as your very first message** right after `open` to let the server know which protocol extensions you support (e.g., preview metadata). The server only processes feature flags if they arrive as the first message in the session.
 4. **Queue prompts with the same `client_id`** – When you call `POST /prompt`, pass the socket’s client ID so execution events route back to this connection.
 
 ### Minimal JavaScript example
@@ -38,8 +38,58 @@ ws.on('message', (payload) => {
 | Type | When | Payload |
 |------|------|---------|
 | `status` | Immediately after connecting. Sent again whenever queue state changes. | `{ "status": { "queue_remaining": <int> }, "sid": "<session-id>" }` |
-| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }`. | Server capabilities, e.g. `{ "supports_preview_metadata": true, "max_upload_size": <bytes>, "extension": { "manager": { "supports_v4": true }}}` |
-| Client request | First message you should send to advertise your capabilities. | `{ "type": "feature_flags", "data": { "supports_preview_metadata": true } }` |
+| `feature_flags` | Response to a client sending `{ "type": "feature_flags", "data": { ... } }` **as the first message after connecting**. | Server capabilities (see Feature Flags section below). |
+| Client request | **Must be the first message sent** after connecting to advertise your capabilities. | `{ "type": "feature_flags", "data": { "supports_preview_metadata": true } }` |
+
+## Feature Flags
+
+Feature flags are exchanged during the WebSocket handshake to negotiate protocol capabilities between the client and server. The client sends its supported features, and the server responds with its own capabilities.
+
+### Client Feature Flags
+
+Send these as the **first message** after the WebSocket connection opens:
+
+```json
+{
+  "type": "feature_flags",
+  "data": {
+    "supports_preview_metadata": true
+  }
+}
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `supports_preview_metadata` | `boolean` | Opt-in to receive `PREVIEW_IMAGE_WITH_METADATA` (binary event type `4`) frames that include node IDs, prompt IDs, and display metadata alongside the preview image. If not sent or `false`, the server sends the legacy `PREVIEW_IMAGE` (type `1`) frames instead. |
+
+### Server Feature Flags
+
+The server responds with a `feature_flags` message containing:
+
+```json
+{
+  "type": "feature_flags",
+  "data": {
+    "supports_preview_metadata": true,
+    "max_upload_size": 104857600,
+    "extension": {
+      "manager": {
+        "supports_v4": true
+      }
+    },
+    "node_replacements": true,
+    "assets": false
+  }
+}
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `supports_preview_metadata` | `boolean` | `true` | Server supports sending preview images with node/prompt metadata (binary event type `4`). |
+| `max_upload_size` | `number` | `104857600` (100 MB × 1024²) | Maximum allowed upload size in **bytes** for `/upload/image`. Set via the `--max-upload-size <MB>` CLI argument (value in MB is multiplied by 1,048,576 to produce bytes). |
+| `extension.manager.supports_v4` | `boolean` | `true` | ComfyUI-Manager protocol version 4 is supported. |
+| `node_replacements` | `boolean` | `true` | Server supports node replacement rules. |
+| `assets` | `boolean` | `false` | The assets system is enabled (requires `--enable-assets` CLI flag). |
 
 ## Execution Lifecycle Messages
 

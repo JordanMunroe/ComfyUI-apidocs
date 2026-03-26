@@ -45,7 +45,7 @@ console.log(data);
 
 ## Multi-User Mode (`comfy-user` Header)
 
-Multi-user mode isolates each user's queue, history, and settings without requiring passwords. Clients identify themselves by including a `comfy-user` header. Because there is no credential verification, this mode is suited for **trusted environments** (private networks, internal services) where you want separation but not full authentication.
+Multi-user mode isolates each user's settings and user data files (the `userdata/` directory) without requiring passwords. The queue and history are still shared across all users. Clients identify themselves by including a `comfy-user` header. Because there is no credential verification, this mode is suited for **trusted environments** (private networks, internal services) where you want per-user settings separation but not full authentication.
 
 ### Setup
 

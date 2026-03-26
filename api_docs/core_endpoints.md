@@ -11,7 +11,7 @@ This section covers the primary endpoints for interacting with ComfyUI. These en
 **Response:** HTML file (index.html)
 
 **Cache Headers:**
-- `Cache-Control: no-cache`
+- `Cache-Control: no-store, must-revalidate`
 - `Pragma: no-cache`
 - `Expires: 0`
 
@@ -361,7 +361,7 @@ Nodes are the building blocks of ComfyUI workflows. Each node represents a speci
 - `output`: Return types for each output
 - `output_is_list`: Whether each output is a list (array) of values
 - `output_name`: Human-readable names for outputs
-- `output_tooltips`: Descriptions for each output (if provided)
+- `output_tooltips`: Descriptions for each output (only present if provided by the node)
 - `name`: Class name of the node
 - `display_name`: Display name shown in UI
 - `description`: Node description
