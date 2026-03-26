@@ -14,6 +14,75 @@ ComfyUI supports three authentication modes. Choose the one that matches your de
 
 ---
 
+## Checking the Auth Mode Before Login
+
+Before prompting a user to log in, your application should ask the server which authentication mode is active. This lets you show the correct UI — no dialog at all, a simple user-name field, or a full username-and-password form — without hard-coding assumptions about the server's configuration.
+
+**Endpoint:** `GET /api/auth/type`
+
+No credentials or headers are required. The endpoint is always accessible, regardless of the active auth mode.
+
+### Response
+
+```json
+{
+  "type": "none" | "comfy-user" | "bearer"
+}
+```
+
+| `type` value | Active mode | What to show |
+|---|---|---|
+| `"none"` | Single-User (default) | No login dialog — proceed directly |
+| `"comfy-user"` | Multi-User (`--multi-user`) | Ask for a user identifier (no password) |
+| `"bearer"` | Authenticated Multi-User (`--enable-user-auth`) | Show a full username + password login form |
+
+### Example
+
+```javascript
+const BASE_URL = "http://127.0.0.1:8188";
+
+async function getAuthType() {
+  const response = await fetch(`${BASE_URL}/api/auth/type`);
+  if (!response.ok) throw new Error(`Unexpected status: ${response.status}`);
+  const { type } = await response.json();
+  return type; // "none" | "comfy-user" | "bearer"
+}
+
+async function initClient() {
+  const authType = await getAuthType();
+
+  if (authType === "none") {
+    // Single-user mode — no credentials needed
+    console.log("No login required. Connecting directly.");
+    return { headers: {} };
+
+  } else if (authType === "comfy-user") {
+    // Multi-user mode — identify the user with a header (no password)
+    const userId = await promptForUserId(); // show a simple name/ID input
+    return { headers: { "comfy-user": userId } };
+
+  } else if (authType === "bearer") {
+    // Authenticated multi-user mode — full login required
+    const { username, password } = await promptForCredentials(); // show login form
+    const loginResponse = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!loginResponse.ok) throw new Error("Login failed");
+    const { token } = await loginResponse.json();
+    return { headers: { Authorization: `Bearer ${token}` } };
+
+  } else {
+    throw new Error(`Unknown auth type: ${authType}`);
+  }
+}
+```
+
+> **Tip:** Call `GET /api/auth/type` once at startup and cache the result. The auth mode cannot change while the server is running.
+
+---
+
 ## Single-User Mode (No Authentication)
 
 This is the default when you start ComfyUI without any authentication flags. No credentials are needed; all requests are accepted from any client that can reach the server.

@@ -5,7 +5,7 @@ The ComfyUI API reference is now organized into focused guides so you can jump s
 ## Section Index
 
 1. **[Overview](./overview.md)** — Base URL, authentication modes, WebSocket usage, and real-time preview streaming.
-2. **[Authentication](./authentication.md)** — Setup and request examples for single-user, multi-user, and authenticated multi-user modes.
+2. **[Authentication](./authentication.md)** — Setup and request examples for single-user, multi-user, and authenticated multi-user modes; includes the pre-login auth mode discovery endpoint.
 3. **[Core API Endpoints](./core_endpoints.md)** — Workflow execution, queue management, node metadata, and history retrieval.
 4. **[Resource Management](./resources.md)** — Discover and manage models, embeddings, uploads, previews, and frontend extensions.
 5. **[Operations & Administration](./operations.md)** — User management, settings, system stats, subgraphs/templates, and internal routes.

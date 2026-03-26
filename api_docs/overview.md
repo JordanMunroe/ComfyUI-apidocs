@@ -43,6 +43,17 @@ The API implements cache control middleware to manage resource caching:
 
 ComfyUI supports three authentication modes. For a complete guide with setup steps and request examples for each mode, see the **[Authentication Guide](./authentication.md)**.
 
+### Discovering the Active Auth Mode
+
+Before prompting the user to log in, call `GET /api/auth/type` to find out which mode the server is running in. No credentials are required for this request.
+
+```javascript
+const { type } = await fetch("http://127.0.0.1:8188/api/auth/type").then(r => r.json());
+// type: "none" | "comfy-user" | "bearer"
+```
+
+See [Checking the Auth Mode Before Login](./authentication.md#checking-the-auth-mode-before-login) for the full response schema and a complete example.
+
 ### Single-User Mode (Default)
 
 No authentication required. All requests are accepted from any reachable client.
