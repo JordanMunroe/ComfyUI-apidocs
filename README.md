@@ -33,6 +33,9 @@ Comprehensive documentation of all endpoints, WebSocket formats.
 - ✅ Error handling and status codes
 - ✅ Best practices and patterns
 
+### 🗂️ [API Endpoints Reference](api_docs/endpoints.md)
+A single-page index of every HTTP and WebSocket endpoint, organized by category. Use it as a quick lookup when you know what you need.
+
 ### 🔐 [Authentication Guide](api_docs/authentication.md)
 Step-by-step guide for both authentication modes: single-user (no auth) and multi-user with per-user storage isolation via the `comfy-user` header.
 
@@ -134,14 +137,15 @@ else
 3. Explore [Simple Workflow Execution](api_docs/examples/simple-workflow-execution.md)
 
 ### 🟡 Intermediate  
-4. Implement [WebSocket Monitoring](api_docs/examples/websocket-monitoring.md)
-5. Try [Image Upload & img2img](api_docs/examples/image-upload-workflow.md)
-6. Learn [Queue Management](api_docs/examples/queue-management.md)
+4. Consult the [API Endpoints Reference](api_docs/endpoints.md) as a quick lookup while building integrations
+5. Implement [WebSocket Monitoring](api_docs/examples/websocket-monitoring.md)
+6. Try [Image Upload & img2img](api_docs/examples/image-upload-workflow.md)
+7. Learn [Queue Management](api_docs/examples/queue-management.md)
 
 ### 🔴 Advanced
-7. Study binary WebSocket protocols in [API Reference](api_docs/API.md#websocket-binary-messages)
-8. Build custom workflows programmatically
-9. Implement production error handling and retry logic
+8. Study binary WebSocket protocols in [API Reference](api_docs/API.md#websocket-binary-messages)
+9. Build custom workflows programmatically
+10. Implement production error handling and retry logic
 
 ---
 
@@ -207,7 +211,8 @@ ComfyUI-apidocs/
 ├── QUICKSTART.md                       # 5-minute quick start guide
 ├── SUMMARY.md                          # Documentation summary and stats
 ├── api_docs/
-│   ├── API.md                          # Complete API reference (1800+ lines)
+│   ├── API.md                          # Complete API reference index
+│   ├── endpoints.md                    # Quick-reference index of all endpoints
 │   └── examples/                       # Code examples directory
 │       ├── README.md                   # Examples overview and navigation
 │       ├── simple-workflow-execution.md    # Text-to-image basics
